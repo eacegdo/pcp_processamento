@@ -9,8 +9,8 @@ import (
 	"github.com/wellington/oce_processamento/internal/memory"
 )
 
-// ParseCSV parses a minimal Lote OCE CSV (comma or semicolon).
-// Requires the four expected headers. Empty fields are skipped (issue 02 will harden further).
+// ParseCSV parses a Lote OCE CSV (comma or semicolon).
+// Requires the four expected headers; skips incomplete rows; last INEP wins.
 func ParseCSV(r io.Reader) ([]memory.ItemLote, error) {
 	data, err := io.ReadAll(r)
 	if err != nil {
@@ -25,6 +25,7 @@ func ParseCSV(r io.Reader) ([]memory.ItemLote, error) {
 	cr := csv.NewReader(strings.NewReader(text))
 	cr.Comma = delim
 	cr.TrimLeadingSpace = true
+	cr.FieldsPerRecord = -1 // allow short rows; incomplete lines are skipped
 
 	header, err := cr.Read()
 	if err != nil {
@@ -35,7 +36,8 @@ func ParseCSV(r io.Reader) ([]memory.ItemLote, error) {
 		return nil, err
 	}
 
-	var items []memory.ItemLote
+	byINEP := make(map[string]memory.ItemLote)
+	primeiraOrdemINEP := make([]string, 0)
 	for {
 		rec, err := cr.Read()
 		if err == io.EOF {
@@ -44,6 +46,9 @@ func ParseCSV(r io.Reader) ([]memory.ItemLote, error) {
 		if err != nil {
 			return nil, fmt.Errorf("csv não parseável: %w", err)
 		}
+		if !hasCols(rec, idx) {
+			continue
+		}
 		inep := strings.TrimSpace(rec[idx.inep])
 		tipo := strings.TrimSpace(rec[idx.tipo])
 		status := strings.TrimSpace(rec[idx.status])
@@ -51,19 +56,41 @@ func ParseCSV(r io.Reader) ([]memory.ItemLote, error) {
 		if inep == "" || tipo == "" || status == "" || pend == "" {
 			continue
 		}
-		items = append(items, memory.ItemLote{
+		item := memory.ItemLote{
 			INEP: inep,
 			Situacao: memory.SituacaoOCE{
 				TipoAcesso: tipo,
 				Status:     status,
 				Pendencia:  pend,
 			},
-		})
+		}
+		if _, seen := byINEP[inep]; !seen {
+			primeiraOrdemINEP = append(primeiraOrdemINEP, inep)
+		}
+		byINEP[inep] = item // last occurrence wins
 	}
-	if len(items) == 0 {
+	if len(primeiraOrdemINEP) == 0 {
 		return nil, fmt.Errorf("csv sem linhas válidas")
 	}
+	items := make([]memory.ItemLote, 0, len(primeiraOrdemINEP))
+	for _, inep := range primeiraOrdemINEP {
+		items = append(items, byINEP[inep])
+	}
 	return items, nil
+}
+
+func hasCols(rec []string, idx colIdx) bool {
+	need := idx.inep
+	if idx.tipo > need {
+		need = idx.tipo
+	}
+	if idx.status > need {
+		need = idx.status
+	}
+	if idx.pendencia > need {
+		need = idx.pendencia
+	}
+	return len(rec) > need
 }
 
 func detectDelimiter(text string) rune {
