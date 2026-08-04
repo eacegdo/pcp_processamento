@@ -6,18 +6,16 @@ import (
 
 	"github.com/wellington/oce_processamento/internal/lote"
 	"github.com/wellington/oce_processamento/internal/memory"
-	"github.com/wellington/oce_processamento/internal/worker"
 )
 
 type Server struct {
-	apiKey  string
-	jobs    *memory.JobStore
-	worker  *worker.Worker
-	mux     *http.ServeMux
+	apiKey string
+	jobs   *memory.JobStore
+	mux    *http.ServeMux
 }
 
-func NewServer(apiKey string, jobs *memory.JobStore, w *worker.Worker) *Server {
-	s := &Server{apiKey: apiKey, jobs: jobs, worker: w, mux: http.NewServeMux()}
+func NewServer(apiKey string, jobs *memory.JobStore) *Server {
+	s := &Server{apiKey: apiKey, jobs: jobs, mux: http.NewServeMux()}
 	s.mux.HandleFunc("POST /v1/lotes", s.handleIngestLote)
 	return s
 }
@@ -50,10 +48,6 @@ func (s *Server) handleIngestLote(rw http.ResponseWriter, req *http.Request) {
 		fileName = header.Filename
 	}
 	job := s.jobs.Create(len(items), fileName, items)
-
-	// Deterministic processing for the HTTP seam tests (issue 01).
-	// Issue 03 will move this to an async FIFO loop.
-	s.worker.ProcessNext()
 
 	rw.Header().Set("Content-Type", "application/json")
 	rw.WriteHeader(http.StatusCreated)

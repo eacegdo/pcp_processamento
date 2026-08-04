@@ -11,6 +11,7 @@ type Job struct {
 	Status       string
 	Total        int
 	Processadas  int
+	Restantes    int
 	FileName     string
 	ErrorMessage string
 	Items        []ItemLote
@@ -23,9 +24,10 @@ type ItemLote struct {
 }
 
 type JobStore struct {
-	mu   sync.Mutex
-	byID map[string]*Job
-	fifo []string
+	mu        sync.Mutex
+	byID      map[string]*Job
+	fifo      []string
+	runningID string
 }
 
 func NewJobStore() *JobStore {
@@ -38,11 +40,12 @@ func (s *JobStore) Create(total int, fileName string, items []ItemLote) Job {
 
 	id := uuid.NewString()
 	job := &Job{
-		ID:       id,
-		Status:   "queued",
-		Total:    total,
-		FileName: fileName,
-		Items:    append([]ItemLote(nil), items...),
+		ID:        id,
+		Status:    "queued",
+		Total:     total,
+		Restantes: total,
+		FileName:  fileName,
+		Items:     append([]ItemLote(nil), items...),
 	}
 	s.byID[id] = job
 	s.fifo = append(s.fifo, id)
@@ -65,9 +68,26 @@ func (s *JobStore) Count() int {
 	return len(s.byID)
 }
 
+func (s *JobStore) Running() (Job, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.runningID == "" {
+		return Job{}, false
+	}
+	job, ok := s.byID[s.runningID]
+	if !ok || job.Status != "running" {
+		s.runningID = ""
+		return Job{}, false
+	}
+	return cloneJob(job), true
+}
+
 func (s *JobStore) ClaimNext() (Job, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.runningID != "" {
+		return Job{}, false
+	}
 	for len(s.fifo) > 0 {
 		id := s.fifo[0]
 		s.fifo = s.fifo[1:]
@@ -76,6 +96,7 @@ func (s *JobStore) ClaimNext() (Job, bool) {
 			continue
 		}
 		job.Status = "running"
+		s.runningID = id
 		return cloneJob(job), true
 	}
 	return Job{}, false
@@ -86,6 +107,7 @@ func (s *JobStore) MarkProgress(id string, processadas int) {
 	defer s.mu.Unlock()
 	if job, ok := s.byID[id]; ok {
 		job.Processadas = processadas
+		job.Restantes = job.Total - processadas
 	}
 }
 
@@ -95,11 +117,29 @@ func (s *JobStore) MarkSuccess(id string) {
 	if job, ok := s.byID[id]; ok {
 		job.Status = "success"
 		job.Processadas = job.Total
+		job.Restantes = 0
+		if s.runningID == id {
+			s.runningID = ""
+		}
+	}
+}
+
+func (s *JobStore) MarkFailed(id string, errorMessage string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if job, ok := s.byID[id]; ok {
+		job.Status = "failed"
+		job.ErrorMessage = errorMessage
+		job.Restantes = job.Total - job.Processadas
+		if s.runningID == id {
+			s.runningID = ""
+		}
 	}
 }
 
 func cloneJob(job *Job) Job {
 	cp := *job
 	cp.Items = append([]ItemLote(nil), job.Items...)
+	cp.Restantes = cp.Total - cp.Processadas
 	return cp
 }

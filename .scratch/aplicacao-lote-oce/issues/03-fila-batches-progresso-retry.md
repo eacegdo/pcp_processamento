@@ -4,11 +4,11 @@
 
 **Blocked by:** 02 — Regras completas do Lote OCE no caminho da API
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Job em andamento atualiza `processadas` (e `restantes`) a cada batch até `success` com `processadas == total`
-- [ ] Enquanto um Job está `running`, um novo upload cria outro Job `queued` que só inicia depois
-- [ ] Ordem FIFO: o Job enfileirado primeiro é processado primeiro
-- [ ] Falha transitória de um batch é retentada um número curto de vezes antes de desistir
-- [ ] Esgotados os retries, Job fica `failed` com `error_message` e updates já aplicados permanecem no `EscolaStore`
-- [ ] Comportamento verificável com fakes (batch size pequeno / store que falha sob comando)
+- [x] Job em andamento atualiza `processadas` (e `restantes`) a cada batch até `success` com `processadas == total`
+- [x] Enquanto um Job está `running`, um novo upload cria outro Job `queued` que só inicia depois
+- [x] Ordem FIFO: o Job enfileirado primeiro é processado primeiro
+- [x] Falha transitória de um batch é retentada um número curto de vezes antes de desistir
+- [x] Esgotados os retries, Job fica `failed` com `error_message` e updates já aplicados permanecem no `EscolaStore`
+- [x] Comportamento verificável com fakes (batch size pequeno / store que falha sob comando)
