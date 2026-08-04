@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/wellington/oce_processamento/internal/domain"
 	"github.com/wellington/oce_processamento/internal/httpapi"
 	"github.com/wellington/oce_processamento/internal/memory"
 	"github.com/wellington/oce_processamento/internal/worker"
@@ -19,7 +20,7 @@ const testAPIKey = "test-api-key"
 
 func TestIngestLoteAutenticadoRetornaIDDoJob(t *testing.T) {
 	escolas := memory.NewEscolaStore()
-	escolas.Seed("12345678", memory.SituacaoOCE{
+	escolas.Seed("12345678", domain.SituacaoOCE{
 		TipoAcesso: "antigo",
 		Status:     "antigo",
 		Pendencia:  "antiga",
@@ -61,7 +62,7 @@ func TestIngestLoteAutenticadoRetornaIDDoJob(t *testing.T) {
 func TestJobAvancaProcessadasPorBatchAteSuccess(t *testing.T) {
 	escolas := memory.NewEscolaStore()
 	for _, inep := range []string{"11111111", "22222222", "33333333"} {
-		escolas.Seed(inep, memory.SituacaoOCE{TipoAcesso: "a", Status: "b", Pendencia: "c"})
+		escolas.Seed(inep, domain.SituacaoOCE{TipoAcesso: "a", Status: "b", Pendencia: "c"})
 	}
 	jobs := memory.NewJobStore()
 	w := worker.New(jobs, escolas, worker.Config{BatchSize: 2, MaxRetries: 3})
@@ -110,7 +111,7 @@ func TestJobAvancaProcessadasPorBatchAteSuccess(t *testing.T) {
 func TestSegundoUploadFicaQueuedEnquantoPrimeiroRunning(t *testing.T) {
 	escolas := memory.NewEscolaStore()
 	for _, inep := range []string{"11111111", "22222222", "33333333", "44444444"} {
-		escolas.Seed(inep, memory.SituacaoOCE{TipoAcesso: "a", Status: "b", Pendencia: "c"})
+		escolas.Seed(inep, domain.SituacaoOCE{TipoAcesso: "a", Status: "b", Pendencia: "c"})
 	}
 	jobs := memory.NewJobStore()
 	w := worker.New(jobs, escolas, worker.Config{BatchSize: 2, MaxRetries: 3})
@@ -150,7 +151,7 @@ func TestSegundoUploadFicaQueuedEnquantoPrimeiroRunning(t *testing.T) {
 
 func TestFilaFIFOProcessaNaOrdemDeEnqueue(t *testing.T) {
 	escolas := memory.NewEscolaStore()
-	escolas.Seed("12345678", memory.SituacaoOCE{TipoAcesso: "a", Status: "b", Pendencia: "c"})
+	escolas.Seed("12345678", domain.SituacaoOCE{TipoAcesso: "a", Status: "b", Pendencia: "c"})
 	jobs := memory.NewJobStore()
 	w := worker.New(jobs, escolas, worker.Config{BatchSize: 1, MaxRetries: 3})
 	srv := httpapi.NewServer(testAPIKey, jobs)
@@ -193,7 +194,7 @@ func TestFilaFIFOProcessaNaOrdemDeEnqueue(t *testing.T) {
 
 func TestFalhaTransitoriaDeBatchERetentada(t *testing.T) {
 	escolas := memory.NewEscolaStore()
-	escolas.Seed("12345678", memory.SituacaoOCE{TipoAcesso: "a", Status: "b", Pendencia: "c"})
+	escolas.Seed("12345678", domain.SituacaoOCE{TipoAcesso: "a", Status: "b", Pendencia: "c"})
 	escolas.FailNext(2) // duas falhas, terceira tentativa sucede
 	jobs := memory.NewJobStore()
 	w := worker.New(jobs, escolas, worker.Config{BatchSize: 1, MaxRetries: 3})
@@ -207,7 +208,7 @@ func TestFalhaTransitoriaDeBatchERetentada(t *testing.T) {
 		t.Fatalf("status = %q error=%q, want success after retries", job.Status, job.ErrorMessage)
 	}
 	got, _ := escolas.Get("12345678")
-	want := memory.SituacaoOCE{TipoAcesso: "presencial", Status: "ativo", Pendencia: "nenhuma"}
+	want := domain.SituacaoOCE{TipoAcesso: "presencial", Status: "ativo", Pendencia: "nenhuma"}
 	if got != want {
 		t.Fatalf("situacao = %+v, want %+v", got, want)
 	}
@@ -215,8 +216,8 @@ func TestFalhaTransitoriaDeBatchERetentada(t *testing.T) {
 
 func TestAposJobFailedProximoQueuedInicia(t *testing.T) {
 	escolas := memory.NewEscolaStore()
-	escolas.Seed("11111111", memory.SituacaoOCE{TipoAcesso: "a", Status: "b", Pendencia: "c"})
-	escolas.Seed("22222222", memory.SituacaoOCE{TipoAcesso: "a", Status: "b", Pendencia: "c"})
+	escolas.Seed("11111111", domain.SituacaoOCE{TipoAcesso: "a", Status: "b", Pendencia: "c"})
+	escolas.Seed("22222222", domain.SituacaoOCE{TipoAcesso: "a", Status: "b", Pendencia: "c"})
 	escolas.FailNext(2)
 	jobs := memory.NewJobStore()
 	w := worker.New(jobs, escolas, worker.Config{BatchSize: 1, MaxRetries: 2})
@@ -256,8 +257,8 @@ func TestAposJobFailedProximoQueuedInicia(t *testing.T) {
 
 func TestFalhaAposRetriesMarcaFailedEPreservaAplicado(t *testing.T) {
 	escolas := memory.NewEscolaStore()
-	escolas.Seed("11111111", memory.SituacaoOCE{TipoAcesso: "a", Status: "b", Pendencia: "c"})
-	escolas.Seed("22222222", memory.SituacaoOCE{TipoAcesso: "a", Status: "b", Pendencia: "c"})
+	escolas.Seed("11111111", domain.SituacaoOCE{TipoAcesso: "a", Status: "b", Pendencia: "c"})
+	escolas.Seed("22222222", domain.SituacaoOCE{TipoAcesso: "a", Status: "b", Pendencia: "c"})
 	jobs := memory.NewJobStore()
 	w := worker.New(jobs, escolas, worker.Config{BatchSize: 1, MaxRetries: 2})
 	srv := httpapi.NewServer(testAPIKey, jobs)
@@ -295,7 +296,7 @@ func TestFalhaAposRetriesMarcaFailedEPreservaAplicado(t *testing.T) {
 	}
 
 	got1, _ = escolas.Get("11111111")
-	want1 := memory.SituacaoOCE{TipoAcesso: "presencial", Status: "ativo", Pendencia: "ok"}
+	want1 := domain.SituacaoOCE{TipoAcesso: "presencial", Status: "ativo", Pendencia: "ok"}
 	if got1 != want1 {
 		t.Fatalf("update já aplicado perdido: %+v, want %+v", got1, want1)
 	}
@@ -307,7 +308,7 @@ func TestFalhaAposRetriesMarcaFailedEPreservaAplicado(t *testing.T) {
 
 func TestIngestLoteAplicaSituacaoOCEEJobSuccess(t *testing.T) {
 	escolas := memory.NewEscolaStore()
-	escolas.Seed("12345678", memory.SituacaoOCE{
+	escolas.Seed("12345678", domain.SituacaoOCE{
 		TipoAcesso: "antigo",
 		Status:     "antigo",
 		Pendencia:  "antiga",
@@ -323,7 +324,7 @@ func TestIngestLoteAplicaSituacaoOCEEJobSuccess(t *testing.T) {
 	if !ok {
 		t.Fatal("escola should still exist")
 	}
-	want := memory.SituacaoOCE{
+	want := domain.SituacaoOCE{
 		TipoAcesso: "presencial",
 		Status:     "ativo",
 		Pendencia:  "nenhuma",
@@ -355,7 +356,7 @@ func TestIngestLoteSemAPIKeyValidaERejeitado(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			escolas := memory.NewEscolaStore()
-			escolas.Seed("12345678", memory.SituacaoOCE{TipoAcesso: "a", Status: "b", Pendencia: "c"})
+			escolas.Seed("12345678", domain.SituacaoOCE{TipoAcesso: "a", Status: "b", Pendencia: "c"})
 			jobs := memory.NewJobStore()
 			srv := httpapi.NewServer(testAPIKey, jobs)
 
@@ -385,7 +386,7 @@ func TestIngestLoteSemAPIKeyValidaERejeitado(t *testing.T) {
 
 func TestIngestLoteCSVInvalidoERejeitado(t *testing.T) {
 	escolas := memory.NewEscolaStore()
-	escolas.Seed("12345678", memory.SituacaoOCE{TipoAcesso: "a", Status: "b", Pendencia: "c"})
+	escolas.Seed("12345678", domain.SituacaoOCE{TipoAcesso: "a", Status: "b", Pendencia: "c"})
 	jobs := memory.NewJobStore()
 	srv := httpapi.NewServer(testAPIKey, jobs)
 
@@ -411,7 +412,7 @@ func TestIngestLoteCSVInvalidoERejeitado(t *testing.T) {
 
 func TestIngestLoteINEPInexistenteNaoCriaEscolaNemFalhaJob(t *testing.T) {
 	escolas := memory.NewEscolaStore()
-	escolas.Seed("12345678", memory.SituacaoOCE{TipoAcesso: "antigo", Status: "antigo", Pendencia: "antiga"})
+	escolas.Seed("12345678", domain.SituacaoOCE{TipoAcesso: "antigo", Status: "antigo", Pendencia: "antiga"})
 	jobs := memory.NewJobStore()
 	w := worker.New(jobs, escolas, worker.Config{BatchSize: 200, MaxRetries: 3})
 	srv := httpapi.NewServer(testAPIKey, jobs)
@@ -426,7 +427,7 @@ func TestIngestLoteINEPInexistenteNaoCriaEscolaNemFalhaJob(t *testing.T) {
 		t.Fatal("INEP inexistente não deve criar Escola")
 	}
 	got, _ := escolas.Get("12345678")
-	want := memory.SituacaoOCE{TipoAcesso: "presencial", Status: "ativo", Pendencia: "ok"}
+	want := domain.SituacaoOCE{TipoAcesso: "presencial", Status: "ativo", Pendencia: "ok"}
 	if got != want {
 		t.Fatalf("situacao = %+v, want %+v", got, want)
 	}
@@ -445,7 +446,7 @@ func TestIngestLoteINEPInexistenteNaoCriaEscolaNemFalhaJob(t *testing.T) {
 
 func TestIngestLoteDuplicataINEPUltimaOcorrenciaVence(t *testing.T) {
 	escolas := memory.NewEscolaStore()
-	escolas.Seed("12345678", memory.SituacaoOCE{TipoAcesso: "antigo", Status: "antigo", Pendencia: "antiga"})
+	escolas.Seed("12345678", domain.SituacaoOCE{TipoAcesso: "antigo", Status: "antigo", Pendencia: "antiga"})
 	jobs := memory.NewJobStore()
 	w := worker.New(jobs, escolas, worker.Config{BatchSize: 200, MaxRetries: 3})
 	srv := httpapi.NewServer(testAPIKey, jobs)
@@ -457,7 +458,7 @@ func TestIngestLoteDuplicataINEPUltimaOcorrenciaVence(t *testing.T) {
 	drain(w)
 
 	got, _ := escolas.Get("12345678")
-	want := memory.SituacaoOCE{TipoAcesso: "remoto", Status: "ativo", Pendencia: "nenhuma"}
+	want := domain.SituacaoOCE{TipoAcesso: "remoto", Status: "ativo", Pendencia: "nenhuma"}
 	if got != want {
 		t.Fatalf("situacao = %+v, want última ocorrência %+v", got, want)
 	}
@@ -476,7 +477,7 @@ func TestIngestLoteDuplicataINEPUltimaOcorrenciaVence(t *testing.T) {
 
 func TestIngestLoteIgnoraLinhaComColunasInsuficientes(t *testing.T) {
 	escolas := memory.NewEscolaStore()
-	escolas.Seed("12345678", memory.SituacaoOCE{TipoAcesso: "antigo", Status: "antigo", Pendencia: "antiga"})
+	escolas.Seed("12345678", domain.SituacaoOCE{TipoAcesso: "antigo", Status: "antigo", Pendencia: "antiga"})
 	jobs := memory.NewJobStore()
 	w := worker.New(jobs, escolas, worker.Config{BatchSize: 200, MaxRetries: 3})
 	srv := httpapi.NewServer(testAPIKey, jobs)
@@ -488,7 +489,7 @@ func TestIngestLoteIgnoraLinhaComColunasInsuficientes(t *testing.T) {
 	drain(w)
 
 	got, _ := escolas.Get("12345678")
-	want := memory.SituacaoOCE{TipoAcesso: "remoto", Status: "ativo", Pendencia: "nenhuma"}
+	want := domain.SituacaoOCE{TipoAcesso: "remoto", Status: "ativo", Pendencia: "nenhuma"}
 	if got != want {
 		t.Fatalf("Situação OCE = %+v, want %+v", got, want)
 	}
@@ -496,8 +497,8 @@ func TestIngestLoteIgnoraLinhaComColunasInsuficientes(t *testing.T) {
 
 func TestIngestLoteIgnoraLinhaComCampoVazio(t *testing.T) {
 	escolas := memory.NewEscolaStore()
-	escolas.Seed("12345678", memory.SituacaoOCE{TipoAcesso: "preservar", Status: "preservar", Pendencia: "preservar"})
-	escolas.Seed("87654321", memory.SituacaoOCE{TipoAcesso: "antigo", Status: "antigo", Pendencia: "antiga"})
+	escolas.Seed("12345678", domain.SituacaoOCE{TipoAcesso: "preservar", Status: "preservar", Pendencia: "preservar"})
+	escolas.Seed("87654321", domain.SituacaoOCE{TipoAcesso: "antigo", Status: "antigo", Pendencia: "antiga"})
 	jobs := memory.NewJobStore()
 	w := worker.New(jobs, escolas, worker.Config{BatchSize: 200, MaxRetries: 3})
 	srv := httpapi.NewServer(testAPIKey, jobs)
@@ -509,12 +510,12 @@ func TestIngestLoteIgnoraLinhaComCampoVazio(t *testing.T) {
 	drain(w)
 
 	gotPreservada, _ := escolas.Get("12345678")
-	wantPreservada := memory.SituacaoOCE{TipoAcesso: "preservar", Status: "preservar", Pendencia: "preservar"}
+	wantPreservada := domain.SituacaoOCE{TipoAcesso: "preservar", Status: "preservar", Pendencia: "preservar"}
 	if gotPreservada != wantPreservada {
 		t.Fatalf("linha incompleta limpou situacao: %+v, want %+v", gotPreservada, wantPreservada)
 	}
 	gotAplicada, _ := escolas.Get("87654321")
-	wantAplicada := memory.SituacaoOCE{TipoAcesso: "remoto", Status: "ativo", Pendencia: "ok"}
+	wantAplicada := domain.SituacaoOCE{TipoAcesso: "remoto", Status: "ativo", Pendencia: "ok"}
 	if gotAplicada != wantAplicada {
 		t.Fatalf("situacao valida = %+v, want %+v", gotAplicada, wantAplicada)
 	}
@@ -530,7 +531,7 @@ func TestIngestLoteIgnoraLinhaComCampoVazio(t *testing.T) {
 
 func TestIngestLoteCSVComPontoEVirgulaAplicaSituacaoOCE(t *testing.T) {
 	escolas := memory.NewEscolaStore()
-	escolas.Seed("12345678", memory.SituacaoOCE{TipoAcesso: "antigo", Status: "antigo", Pendencia: "antiga"})
+	escolas.Seed("12345678", domain.SituacaoOCE{TipoAcesso: "antigo", Status: "antigo", Pendencia: "antiga"})
 	jobs := memory.NewJobStore()
 	w := worker.New(jobs, escolas, worker.Config{BatchSize: 200, MaxRetries: 3})
 	srv := httpapi.NewServer(testAPIKey, jobs)
@@ -544,7 +545,7 @@ func TestIngestLoteCSVComPontoEVirgulaAplicaSituacaoOCE(t *testing.T) {
 	if !ok {
 		t.Fatal("escola should still exist")
 	}
-	want := memory.SituacaoOCE{TipoAcesso: "presencial", Status: "ativo", Pendencia: "nenhuma"}
+	want := domain.SituacaoOCE{TipoAcesso: "presencial", Status: "ativo", Pendencia: "nenhuma"}
 	if got != want {
 		t.Fatalf("situacao = %+v, want %+v", got, want)
 	}

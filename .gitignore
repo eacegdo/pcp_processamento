@@ -1,0 +1,21 @@
+# Segredos e ambiente local
+.env
+.env.local
+.env.*.local
+
+# Binários / build
+/bin/
+/dist/
+*.exe
+*.test
+*.out
+oce_processamento
+
+# Go
+vendor/
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store

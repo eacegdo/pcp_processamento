@@ -1,27 +1,26 @@
 package memory
 
-import "errors"
+import (
+	"errors"
 
-type SituacaoOCE struct {
-	TipoAcesso string
-	Status     string
-	Pendencia  string
-}
+	"github.com/wellington/oce_processamento/internal/domain"
+)
 
+// EscolaStore is an in-memory EscolaStore.
 type EscolaStore struct {
-	byINEP        map[string]SituacaoOCE
+	byINEP        map[string]domain.SituacaoOCE
 	failRemaining int
 }
 
 func NewEscolaStore() *EscolaStore {
-	return &EscolaStore{byINEP: make(map[string]SituacaoOCE)}
+	return &EscolaStore{byINEP: make(map[string]domain.SituacaoOCE)}
 }
 
-func (s *EscolaStore) Seed(inep string, situacao SituacaoOCE) {
+func (s *EscolaStore) Seed(inep string, situacao domain.SituacaoOCE) {
 	s.byINEP[inep] = situacao
 }
 
-func (s *EscolaStore) Get(inep string) (SituacaoOCE, bool) {
+func (s *EscolaStore) Get(inep string) (domain.SituacaoOCE, bool) {
 	v, ok := s.byINEP[inep]
 	return v, ok
 }
@@ -32,7 +31,7 @@ func (s *EscolaStore) FailNext(n int) {
 }
 
 // UpdateSituacaoOCE updates existing Escola only; missing INEP is a no-op.
-func (s *EscolaStore) UpdateSituacaoOCE(inep string, situacao SituacaoOCE) {
+func (s *EscolaStore) UpdateSituacaoOCE(inep string, situacao domain.SituacaoOCE) {
 	if _, ok := s.byINEP[inep]; !ok {
 		return
 	}
@@ -40,7 +39,7 @@ func (s *EscolaStore) UpdateSituacaoOCE(inep string, situacao SituacaoOCE) {
 }
 
 // ApplyBatch applies a batch of Situação OCE updates. Missing INEP is a no-op.
-func (s *EscolaStore) ApplyBatch(items []ItemLote) error {
+func (s *EscolaStore) ApplyBatch(items []domain.ItemLote) error {
 	if s.failRemaining > 0 {
 		s.failRemaining--
 		return errors.New("falha transitória no batch")

@@ -4,17 +4,17 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/wellington/oce_processamento/internal/domain"
 	"github.com/wellington/oce_processamento/internal/lote"
-	"github.com/wellington/oce_processamento/internal/memory"
 )
 
 type Server struct {
 	apiKey string
-	jobs   *memory.JobStore
+	jobs   domain.JobStore
 	mux    *http.ServeMux
 }
 
-func NewServer(apiKey string, jobs *memory.JobStore) *Server {
+func NewServer(apiKey string, jobs domain.JobStore) *Server {
 	s := &Server{apiKey: apiKey, jobs: jobs, mux: http.NewServeMux()}
 	s.mux.HandleFunc("POST /v1/lotes", s.handleIngestLote)
 	return s
@@ -47,7 +47,11 @@ func (s *Server) handleIngestLote(rw http.ResponseWriter, req *http.Request) {
 	if header != nil {
 		fileName = header.Filename
 	}
-	job := s.jobs.Create(len(items), fileName, items)
+	job, err := s.jobs.Create(len(items), fileName, items)
+	if err != nil {
+		http.Error(rw, `{"error":"falha ao criar job"}`, http.StatusInternalServerError)
+		return
+	}
 
 	rw.Header().Set("Content-Type", "application/json")
 	rw.WriteHeader(http.StatusCreated)

@@ -6,12 +6,12 @@ import (
 	"io"
 	"strings"
 
-	"github.com/wellington/oce_processamento/internal/memory"
+	"github.com/wellington/oce_processamento/internal/domain"
 )
 
 // ParseCSV parses a Lote OCE CSV (comma or semicolon).
 // Requires the four expected headers; skips incomplete rows; last INEP wins.
-func ParseCSV(r io.Reader) ([]memory.ItemLote, error) {
+func ParseCSV(r io.Reader) ([]domain.ItemLote, error) {
 	data, err := io.ReadAll(r)
 	if err != nil {
 		return nil, err
@@ -36,7 +36,7 @@ func ParseCSV(r io.Reader) ([]memory.ItemLote, error) {
 		return nil, err
 	}
 
-	byINEP := make(map[string]memory.ItemLote)
+	byINEP := make(map[string]domain.ItemLote)
 	primeiraOrdemINEP := make([]string, 0)
 	for {
 		rec, err := cr.Read()
@@ -56,9 +56,9 @@ func ParseCSV(r io.Reader) ([]memory.ItemLote, error) {
 		if inep == "" || tipo == "" || status == "" || pend == "" {
 			continue
 		}
-		item := memory.ItemLote{
+		item := domain.ItemLote{
 			INEP: inep,
-			Situacao: memory.SituacaoOCE{
+			Situacao: domain.SituacaoOCE{
 				TipoAcesso: tipo,
 				Status:     status,
 				Pendencia:  pend,
@@ -72,7 +72,7 @@ func ParseCSV(r io.Reader) ([]memory.ItemLote, error) {
 	if len(primeiraOrdemINEP) == 0 {
 		return nil, fmt.Errorf("csv sem linhas válidas")
 	}
-	items := make([]memory.ItemLote, 0, len(primeiraOrdemINEP))
+	items := make([]domain.ItemLote, 0, len(primeiraOrdemINEP))
 	for _, inep := range primeiraOrdemINEP {
 		items = append(items, byINEP[inep])
 	}

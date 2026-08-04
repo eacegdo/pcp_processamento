@@ -1,6 +1,6 @@
 package worker
 
-import "github.com/wellington/oce_processamento/internal/memory"
+import "github.com/wellington/oce_processamento/internal/domain"
 
 type Config struct {
 	BatchSize  int
@@ -8,13 +8,13 @@ type Config struct {
 }
 
 type Worker struct {
-	jobs       *memory.JobStore
-	escolas    *memory.EscolaStore
+	jobs       domain.JobStore
+	escolas    domain.EscolaStore
 	batchSize  int
 	maxRetries int
 }
 
-func New(jobs *memory.JobStore, escolas *memory.EscolaStore, cfg Config) *Worker {
+func New(jobs domain.JobStore, escolas domain.EscolaStore, cfg Config) *Worker {
 	batchSize := cfg.BatchSize
 	if batchSize <= 0 {
 		batchSize = 200
@@ -39,7 +39,7 @@ func (w *Worker) ProcessNext() bool {
 
 	start := job.Processadas
 	if start >= job.Total {
-		w.jobs.MarkSuccess(job.ID)
+		w.finishSuccess(job.ID)
 		return true
 	}
 	end := start + w.batchSize
@@ -56,13 +56,30 @@ func (w *Worker) ProcessNext() bool {
 		}
 	}
 	if err != nil {
-		w.jobs.MarkFailed(job.ID, err.Error())
+		w.finishFailed(job.ID, err.Error())
 		return true
 	}
 
-	w.jobs.MarkProgress(job.ID, end)
+	if err := w.jobs.MarkProgress(job.ID, end); err != nil {
+		w.finishFailed(job.ID, err.Error())
+		return true
+	}
 	if end >= job.Total {
-		w.jobs.MarkSuccess(job.ID)
+		w.finishSuccess(job.ID)
 	}
 	return true
+}
+
+func (w *Worker) finishSuccess(id string) {
+	if err := w.jobs.MarkSuccess(id); err != nil {
+		w.finishFailed(id, err.Error())
+	}
+}
+
+func (w *Worker) finishFailed(id, msg string) {
+	for attempt := 0; attempt < w.maxRetries; attempt++ {
+		if err := w.jobs.MarkFailed(id, msg); err == nil {
+			return
+		}
+	}
 }
