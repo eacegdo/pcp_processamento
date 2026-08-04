@@ -17,6 +17,7 @@ func ParseCSV(r io.Reader) ([]domain.ItemLote, error) {
 		return nil, err
 	}
 	text := string(data)
+	text = strings.TrimPrefix(text, "\ufeff") // Excel UTF-8 BOM
 	if strings.TrimSpace(text) == "" {
 		return nil, fmt.Errorf("csv vazio")
 	}

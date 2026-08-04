@@ -12,20 +12,18 @@ import (
 	"github.com/wellington/oce_processamento/internal/supabase"
 )
 
-func TestEscolaStoreApplyBatchAtualizaSoColunasOcePorINEP(t *testing.T) {
+func TestEscolaStoreApplyBatchChamaRpcComLoteInteiro(t *testing.T) {
 	var gotMethod string
 	var gotPath string
-	var gotQuery string
 	var gotBody map[string]any
 	var gotAuth string
-	var gotPrefer string
+	var calls int
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
 		gotMethod = r.Method
 		gotPath = r.URL.Path
-		gotQuery = r.URL.RawQuery
 		gotAuth = r.Header.Get("Authorization")
-		gotPrefer = r.Header.Get("Prefer")
 		defer r.Body.Close()
 		b, _ := io.ReadAll(r.Body)
 		_ = json.Unmarshal(b, &gotBody)
@@ -34,71 +32,82 @@ func TestEscolaStoreApplyBatchAtualizaSoColunasOcePorINEP(t *testing.T) {
 	defer srv.Close()
 
 	store := supabase.NewEscolaStore(srv.URL, "service-role", srv.Client())
-	err := store.ApplyBatch([]domain.ItemLote{{
-		INEP: "12345678",
-		Situacao: domain.SituacaoOCE{
-			TipoAcesso: "presencial",
-			Status:     "ativo",
-			Pendencia:  "nenhuma",
+	err := store.ApplyBatch([]domain.ItemLote{
+		{
+			INEP: "11111111",
+			Situacao: domain.SituacaoOCE{
+				TipoAcesso: "presencial",
+				Status:     "ativo",
+				Pendencia:  "nenhuma",
+			},
 		},
-	}})
+		{
+			INEP: "22222222",
+			Situacao: domain.SituacaoOCE{
+				TipoAcesso: "remoto",
+				Status:     "rascunho",
+				Pendencia:  "pendente",
+			},
+		},
+	})
 	if err != nil {
 		t.Fatalf("ApplyBatch: %v", err)
 	}
 
-	if gotMethod != http.MethodPatch {
-		t.Fatalf("method = %q, want PATCH", gotMethod)
+	if calls != 1 {
+		t.Fatalf("http calls = %d, want 1 (batch RPC)", calls)
 	}
-	if !strings.HasSuffix(gotPath, "/escola") {
-		t.Fatalf("path = %q, want .../escola", gotPath)
+	if gotMethod != http.MethodPost {
+		t.Fatalf("method = %q, want POST", gotMethod)
 	}
-	if gotQuery != "inep=eq.12345678" {
-		t.Fatalf("query = %q, want inep=eq.12345678", gotQuery)
+	if !strings.HasSuffix(gotPath, "/rpc/aplicar_situacao_oce_lote") {
+		t.Fatalf("path = %q, want .../rpc/aplicar_situacao_oce_lote", gotPath)
 	}
 	if gotAuth != "Bearer service-role" {
 		t.Fatalf("Authorization = %q", gotAuth)
 	}
-	if !strings.Contains(gotPrefer, "return=minimal") {
-		t.Fatalf("Prefer = %q, want return=minimal", gotPrefer)
+
+	itens, ok := gotBody["itens"].([]any)
+	if !ok || len(itens) != 2 {
+		t.Fatalf("body = %v, want itens with 2 rows", gotBody)
 	}
-	wantKeys := map[string]string{
-		"oce_tipo_acesso": "presencial",
-		"oce_status":      "ativo",
-		"oce_pendencia":   "nenhuma",
+	first, _ := itens[0].(map[string]any)
+	if first["inep"] != "11111111" || first["oce_tipo_acesso"] != "presencial" ||
+		first["oce_status"] != "ativo" || first["oce_pendencia"] != "nenhuma" {
+		t.Fatalf("first item = %v", first)
 	}
-	if len(gotBody) != 3 {
-		t.Fatalf("body keys = %v, want exactly 3 OCE columns", gotBody)
+	if len(first) != 4 {
+		t.Fatalf("item keys = %v, want exactly inep + 3 OCE columns", first)
 	}
-	for k, v := range wantKeys {
-		if gotBody[k] != v {
-			t.Fatalf("body[%q] = %v, want %q", k, gotBody[k], v)
-		}
+	second, _ := itens[1].(map[string]any)
+	if second["inep"] != "22222222" || second["oce_status"] != "rascunho" {
+		t.Fatalf("second item = %v", second)
 	}
 }
 
-func TestEscolaStoreApplyBatchINEPInexistenteENoOp(t *testing.T) {
+func TestEscolaStoreApplyBatchVazioNaoChamaSupabase(t *testing.T) {
+	calls := 0
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// PostgREST PATCH with no matching rows still returns success.
+		calls++
 		w.WriteHeader(http.StatusNoContent)
 	}))
 	defer srv.Close()
 
 	store := supabase.NewEscolaStore(srv.URL, "service-role", srv.Client())
-	err := store.ApplyBatch([]domain.ItemLote{{
-		INEP:     "99999999",
-		Situacao: domain.SituacaoOCE{TipoAcesso: "a", Status: "b", Pendencia: "c"},
-	}})
-	if err != nil {
-		t.Fatalf("missing INEP must be no-op, got %v", err)
+	if err := store.ApplyBatch(nil); err != nil {
+		t.Fatalf("ApplyBatch: %v", err)
+	}
+	if calls != 0 {
+		t.Fatalf("calls = %d, want 0", calls)
 	}
 }
 
 func TestEscolaStoreApplyBatchNaoUsaUpsert(t *testing.T) {
 	var gotPrefer string
-	var gotMethod string
+	var gotPath string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotMethod = r.Method
 		gotPrefer = r.Header.Get("Prefer")
+		gotPath = r.URL.Path
 		w.WriteHeader(http.StatusNoContent)
 	}))
 	defer srv.Close()
@@ -109,8 +118,8 @@ func TestEscolaStoreApplyBatchNaoUsaUpsert(t *testing.T) {
 		Situacao: domain.SituacaoOCE{TipoAcesso: "a", Status: "b", Pendencia: "c"},
 	}})
 
-	if gotMethod != http.MethodPatch {
-		t.Fatalf("method = %q, want PATCH (never POST upsert)", gotMethod)
+	if !strings.Contains(gotPath, "/rpc/") {
+		t.Fatalf("path = %q, want RPC update (not table upsert)", gotPath)
 	}
 	if strings.Contains(strings.ToLower(gotPrefer), "resolution=") {
 		t.Fatalf("Prefer must not request upsert resolution, got %q", gotPrefer)
