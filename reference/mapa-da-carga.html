@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Referência — Mapa da carga OCE</title>
+  <link rel="stylesheet" href="../assets/lesson.css" />
+</head>
+<body>
+  <main class="page">
+    <p class="eyebrow">Referência</p>
+    <h1>Mapa da carga OCE</h1>
+    <p class="lede">Folha rápida para explicar ao time. Detalhe na <a href="../lessons/0001-mapa-geral-da-carga.html">aula 1</a> e em <a href="../CONTEXT.md">CONTEXT.md</a>.</p>
+
+    <h2>Fluxo (uma frase por etapa)</h2>
+    <ol class="flow">
+      <li><span class="step">1 · Bubble / curl</span> Envia CSV do <strong>Lote OCE</strong> com API key → <code>POST /v1/lotes</code></li>
+      <li><span class="step">2 · API Go</span> Valida auth + parseia CSV → cria <strong>Job de Aplicação</strong> <code>queued</code></li>
+      <li><span class="step">3 · Worker</span> FIFO: um Job por vez → <code>running</code> → batches</li>
+      <li><span class="step">4 · Supabase</span> Progresso em <code>oce_job</code>; Situação OCE em <code>escola</code> via RPC</li>
+      <li><span class="step">5 · Bubble</span> Lê <code>oce_job</code> (não precisa GET na API Go)</li>
+    </ol>
+
+    <h2>Peças do repo</h2>
+    <div class="box">
+      <p><code>cmd/oce-processamento</code> — sobe HTTP + worker</p>
+      <p><code>internal/httpapi</code> — ingestão autenticada</p>
+      <p><code>internal/lote</code> — parser do CSV</p>
+      <p><code>internal/worker</code> — fila, batch, retry</p>
+      <p><code>internal/supabase</code> — adapters PostgREST</p>
+      <p><code>docs/sql/*</code> — <code>oce_job</code> + RPC de batch</p>
+    </div>
+
+    <h2>Regras que o time precisa lembrar</h2>
+    <ul>
+      <li>Não cria Escola — INEP inexistente é no-op</li>
+      <li>Só 3 colunas OCE em <code>escola</code></li>
+      <li>CSV temporário (sem Storage); itens do lote ficam na memória do processo</li>
+      <li>Job <code>failed</code> → reenviar CSV (seguro para estado final)</li>
+    </ul>
+  </main>
+</body>
+</html>
