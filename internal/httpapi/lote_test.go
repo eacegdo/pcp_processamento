@@ -495,7 +495,7 @@ func TestIngestLoteIgnoraLinhaComColunasInsuficientes(t *testing.T) {
 	}
 }
 
-func TestIngestLoteIgnoraLinhaComCampoVazio(t *testing.T) {
+func TestIngestLoteAplicaCampoVazioQuandoCabecalhoOk(t *testing.T) {
 	escolas := memory.NewEscolaStore()
 	escolas.Seed("12345678", domain.SituacaoOCE{TipoAcesso: "preservar", Status: "preservar", Pendencia: "preservar"})
 	escolas.Seed("87654321", domain.SituacaoOCE{TipoAcesso: "antigo", Status: "antigo", Pendencia: "antiga"})
@@ -504,28 +504,28 @@ func TestIngestLoteIgnoraLinhaComCampoVazio(t *testing.T) {
 	srv := httpapi.NewServer(testAPIKey, jobs)
 
 	csv := "inep,oce_tipo_acesso,oce_status_final,oce_pendencia\n" +
-		"12345678,presencial,,nenhuma\n" +
+		"12345678,,Pendência Operacional,Sem EN\n" +
 		"87654321,remoto,ativo,ok\n"
 	id := postLote(t, srv, csv)
 	drain(w)
 
-	gotPreservada, _ := escolas.Get("12345678")
-	wantPreservada := domain.SituacaoOCE{TipoAcesso: "preservar", Status: "preservar", Pendencia: "preservar"}
-	if gotPreservada != wantPreservada {
-		t.Fatalf("linha incompleta limpou situacao: %+v, want %+v", gotPreservada, wantPreservada)
+	gotVazia, _ := escolas.Get("12345678")
+	wantVazia := domain.SituacaoOCE{TipoAcesso: "", Status: "Pendência Operacional", Pendencia: "Sem EN"}
+	if gotVazia != wantVazia {
+		t.Fatalf("campo vazio não aplicado: %+v, want %+v", gotVazia, wantVazia)
 	}
 	gotAplicada, _ := escolas.Get("87654321")
 	wantAplicada := domain.SituacaoOCE{TipoAcesso: "remoto", Status: "ativo", Pendencia: "ok"}
 	if gotAplicada != wantAplicada {
-		t.Fatalf("situacao valida = %+v, want %+v", gotAplicada, wantAplicada)
+		t.Fatalf("situacao = %+v, want %+v", gotAplicada, wantAplicada)
 	}
 
 	job, ok := jobs.Get(id)
 	if !ok {
 		t.Fatal("job not found")
 	}
-	if job.Total != 1 {
-		t.Fatalf("total = %d, want 1 (só linhas válidas)", job.Total)
+	if job.Total != 2 {
+		t.Fatalf("total = %d, want 2 (vazios entram)", job.Total)
 	}
 }
 

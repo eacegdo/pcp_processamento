@@ -10,7 +10,8 @@ import (
 )
 
 // ParseCSV parses a Lote OCE CSV (comma or semicolon).
-// Requires the four expected headers; skips incomplete rows; last INEP wins.
+// Requires the four expected headers; empty Situação OCE fields are kept;
+// rows without INEP are skipped; last INEP wins.
 func ParseCSV(r io.Reader) ([]domain.ItemLote, error) {
 	data, err := io.ReadAll(r)
 	if err != nil {
@@ -47,16 +48,13 @@ func ParseCSV(r io.Reader) ([]domain.ItemLote, error) {
 		if err != nil {
 			return nil, fmt.Errorf("csv não parseável: %w", err)
 		}
-		if !hasCols(rec, idx) {
-			continue
+		inep := cell(rec, idx.inep)
+		if inep == "" {
+			continue // sem INEP não há Escola a atualizar
 		}
-		inep := strings.TrimSpace(rec[idx.inep])
-		tipo := strings.TrimSpace(rec[idx.tipo])
-		status := strings.TrimSpace(rec[idx.status])
-		pend := strings.TrimSpace(rec[idx.pendencia])
-		if inep == "" || tipo == "" || status == "" || pend == "" {
-			continue
-		}
+		tipo := cell(rec, idx.tipo)
+		status := cell(rec, idx.status)
+		pend := cell(rec, idx.pendencia)
 		item := domain.ItemLote{
 			INEP: inep,
 			Situacao: domain.SituacaoOCE{
@@ -80,18 +78,11 @@ func ParseCSV(r io.Reader) ([]domain.ItemLote, error) {
 	return items, nil
 }
 
-func hasCols(rec []string, idx colIdx) bool {
-	need := idx.inep
-	if idx.tipo > need {
-		need = idx.tipo
+func cell(rec []string, i int) string {
+	if i < 0 || i >= len(rec) {
+		return ""
 	}
-	if idx.status > need {
-		need = idx.status
-	}
-	if idx.pendencia > need {
-		need = idx.pendencia
-	}
-	return len(rec) > need
+	return strings.TrimSpace(rec[i])
 }
 
 func detectDelimiter(text string) rune {

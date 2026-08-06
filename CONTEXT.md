@@ -25,7 +25,7 @@ Conjunto de Situações OCE recebido de uma vez (arquivo CSV) para ser aplicado.
 _Avoid_: upload, arquivo, import (como conceito de domínio)
 
 **Aplicação de Lote**:
-Atualização em massa da Situação OCE de Escolas já existentes, identificadas por INEP; não cria Escola nova. Linha cujo INEP não existe é ignorada; as demais seguem. Se o mesmo INEP repetir no lote, a última ocorrência vence. Linha com qualquer dos quatro campos vazio é ignorada (não limpa valor no banco).
+Atualização em massa da Situação OCE de Escolas já existentes, identificadas por INEP; não cria Escola nova. Linha cujo INEP não existe é ignorada; as demais seguem. Se o mesmo INEP repetir no lote, a última ocorrência vence. Com o cabeçalho do Lote OCE correto, campo de Situação OCE vazio no CSV é aplicado como vazio (pode limpar o valor no banco); só linha sem INEP é descartada.
 _Avoid_: upsert (quando implicar inserção), insert, sync completo
 
 **Job de Aplicação**:
