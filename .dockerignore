@@ -6,7 +6,8 @@
 .env.*
 *.test
 *.out
-oce_processamento
+/pcp-processamento
+/oce_processamento
 bin/
 dist/
 lessons/

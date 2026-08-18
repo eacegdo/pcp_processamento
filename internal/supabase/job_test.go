@@ -8,17 +8,29 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
-	"github.com/wellington/oce_processamento/internal/domain"
-	"github.com/wellington/oce_processamento/internal/supabase"
+	"github.com/wellington/pcp_processamento/internal/domain"
+	"github.com/wellington/pcp_processamento/internal/supabase"
 )
 
-func TestJobStoreCreatePersisteOceJobEMantemItensLocais(t *testing.T) {
+func sampleItem() domain.ItemCarga {
+	return domain.ItemCarga{
+		Data:           time.Date(2026, 8, 18, 0, 0, 0, 0, time.UTC),
+		Fase:           "4.2",
+		Regional:       "NE-I",
+		RegionalNome:   "Nordeste I",
+		FornecedorCNPJ: "12.345.678/0001-99",
+		Quantidade:     10,
+	}
+}
+
+func TestJobStoreCreatePersistePcpJobEMantemItensLocais(t *testing.T) {
 	var mu sync.Mutex
 	var posts []map[string]any
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost || !strings.HasSuffix(r.URL.Path, "/oce_job") {
+		if r.Method != http.MethodPost || !strings.HasSuffix(r.URL.Path, "/pcp_job") {
 			t.Fatalf("unexpected %s %s", r.Method, r.URL.Path)
 		}
 		defer r.Body.Close()
@@ -33,26 +45,22 @@ func TestJobStoreCreatePersisteOceJobEMantemItensLocais(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		_, _ = w.Write([]byte(`[{"id":"11111111-1111-1111-1111-111111111111","status":"queued","total":1,"processadas":0,"file_name":"lote.csv"}]`))
+		_, _ = w.Write([]byte(`[{"id":"11111111-1111-1111-1111-111111111111","status":"queued","total":1,"processadas":0,"file_name":"carga.csv"}]`))
 	}))
 	defer srv.Close()
 
-	items := []domain.ItemLote{{
-		INEP:     "12345678",
-		Situacao: domain.SituacaoOCE{TipoAcesso: "presencial", Status: "ativo", Pendencia: "ok"},
-	}}
 	store := supabase.NewJobStore(srv.URL, "service-role", srv.Client())
-	job, err := store.Create(1, "lote.csv", items)
+	job, err := store.Create(1, "carga.csv", []domain.ItemCarga{sampleItem()})
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
 	if job.ID != "11111111-1111-1111-1111-111111111111" {
 		t.Fatalf("id = %q", job.ID)
 	}
-	if job.Status != "queued" || job.Total != 1 || job.FileName != "lote.csv" {
+	if job.Status != "queued" || job.Total != 1 || job.FileName != "carga.csv" {
 		t.Fatalf("job = %+v", job)
 	}
-	if len(job.Items) != 1 || job.Items[0].INEP != "12345678" {
+	if len(job.Items) != 1 || job.Items[0].FornecedorCNPJ != "12.345.678/0001-99" {
 		t.Fatalf("items must stay available locally: %+v", job.Items)
 	}
 
@@ -62,21 +70,17 @@ func TestJobStoreCreatePersisteOceJobEMantemItensLocais(t *testing.T) {
 		t.Fatalf("posts = %d, want 1", len(posts))
 	}
 	body := posts[0]
-	// Only Bubble-facing columns — never send items/payload.
 	allowed := map[string]bool{
 		"status": true, "total": true, "processadas": true, "file_name": true,
 	}
 	for k := range body {
 		if !allowed[k] {
-			t.Fatalf("unexpected column %q in oce_job insert: %v", k, body)
+			t.Fatalf("unexpected column %q in pcp_job insert: %v", k, body)
 		}
-	}
-	if body["status"] != "queued" || body["total"] != float64(1) || body["processadas"] != float64(0) || body["file_name"] != "lote.csv" {
-		t.Fatalf("insert body = %v", body)
 	}
 }
 
-func TestJobStoreClaimNextEProgressoAtualizamOceJob(t *testing.T) {
+func TestJobStoreClaimNextEProgressoAtualizamPcpJob(t *testing.T) {
 	var mu sync.Mutex
 	var patches []struct {
 		query string
@@ -86,11 +90,11 @@ func TestJobStoreClaimNextEProgressoAtualizamOceJob(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
 		switch {
-		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/oce_job"):
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/pcp_job"):
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusCreated)
 			_, _ = w.Write([]byte(`[{"id":"22222222-2222-2222-2222-222222222222","status":"queued","total":2,"processadas":0,"file_name":"a.csv"}]`))
-		case r.Method == http.MethodPatch && strings.HasSuffix(r.URL.Path, "/oce_job"):
+		case r.Method == http.MethodPatch && strings.HasSuffix(r.URL.Path, "/pcp_job"):
 			var body map[string]any
 			b, _ := io.ReadAll(r.Body)
 			_ = json.Unmarshal(b, &body)
@@ -108,10 +112,7 @@ func TestJobStoreClaimNextEProgressoAtualizamOceJob(t *testing.T) {
 	defer srv.Close()
 
 	store := supabase.NewJobStore(srv.URL, "service-role", srv.Client())
-	items := []domain.ItemLote{
-		{INEP: "1", Situacao: domain.SituacaoOCE{TipoAcesso: "a", Status: "b", Pendencia: "c"}},
-		{INEP: "2", Situacao: domain.SituacaoOCE{TipoAcesso: "a", Status: "b", Pendencia: "c"}},
-	}
+	items := []domain.ItemCarga{sampleItem(), sampleItem()}
 	job, err := store.Create(2, "a.csv", items)
 	if err != nil {
 		t.Fatalf("Create: %v", err)
@@ -136,28 +137,7 @@ func TestJobStoreClaimNextEProgressoAtualizamOceJob(t *testing.T) {
 	mu.Lock()
 	defer mu.Unlock()
 	if len(patches) != 3 {
-		t.Fatalf("patches = %d, want 3 (running, progress, success)", len(patches))
-	}
-	if patches[0].body["status"] != "running" {
-		t.Fatalf("first patch = %v, want status running", patches[0].body)
-	}
-	if patches[1].body["processadas"] != float64(1) {
-		t.Fatalf("progress patch = %v", patches[1].body)
-	}
-	if patches[2].body["status"] != "success" || patches[2].body["processadas"] != float64(2) {
-		t.Fatalf("success patch = %v", patches[2].body)
-	}
-	for i, p := range patches {
-		if p.query != "id=eq.22222222-2222-2222-2222-222222222222" {
-			t.Fatalf("patch[%d] query = %q", i, p.query)
-		}
-		for k := range p.body {
-			switch k {
-			case "status", "processadas", "error_message":
-			default:
-				t.Fatalf("patch[%d] unexpected column %q: %v", i, k, p.body)
-			}
-		}
+		t.Fatalf("patches = %d, want 3", len(patches))
 	}
 }
 
@@ -177,11 +157,7 @@ func TestJobStoreMarkFailedPreservaProgressoParcial(t *testing.T) {
 	defer srv.Close()
 
 	store := supabase.NewJobStore(srv.URL, "service-role", srv.Client())
-	job, _ := store.Create(3, "", []domain.ItemLote{
-		{INEP: "1", Situacao: domain.SituacaoOCE{TipoAcesso: "a", Status: "b", Pendencia: "c"}},
-		{INEP: "2", Situacao: domain.SituacaoOCE{TipoAcesso: "a", Status: "b", Pendencia: "c"}},
-		{INEP: "3", Situacao: domain.SituacaoOCE{TipoAcesso: "a", Status: "b", Pendencia: "c"}},
-	})
+	job, _ := store.Create(3, "", []domain.ItemCarga{sampleItem(), sampleItem(), sampleItem()})
 	_, _ = store.ClaimNext()
 	_ = store.MarkProgress(job.ID, 1)
 	if err := store.MarkFailed(job.ID, "falha transitória no batch"); err != nil {

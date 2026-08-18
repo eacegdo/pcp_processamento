@@ -1,19 +1,37 @@
 package domain
 
-// SituacaoOCE is the OCE state of an Escola.
-type SituacaoOCE struct {
-	TipoAcesso string
-	Status     string
-	Pendencia  string
+import "time"
+
+const TipoPlanejado = "planejado"
+const TipoProgramado = "programado"
+
+// RegistroPCP is one line in the PCP collection.
+type RegistroPCP struct {
+	Tipo           string
+	Data           time.Time
+	Fase           string
+	Regional       string
+	RegionalNome   string
+	UF             string
+	INEP           string
+	FornecedorNome string
+	FornecedorCNPJ string
+	Quantidade     int
+	Provisoria     *bool
 }
 
-// ItemLote is one Escola's Situação OCE to apply in a Lote OCE.
-type ItemLote struct {
-	INEP     string
-	Situacao SituacaoOCE
+// ItemCarga is one Planejado line to apply from a Carga de Planejamento.
+type ItemCarga struct {
+	Data           time.Time
+	Fase           string
+	Regional       string
+	RegionalNome   string
+	FornecedorNome string
+	FornecedorCNPJ string
+	Quantidade     int
 }
 
-// Job is an Aplicação de Lote execution with observable progress.
+// Job is an Aplicação da Carga execution with observable progress.
 type Job struct {
 	ID           string
 	Status       string
@@ -22,12 +40,12 @@ type Job struct {
 	Restantes    int
 	FileName     string
 	ErrorMessage string
-	Items        []ItemLote
+	Items        []ItemCarga
 }
 
 // JobStore persists Jobs de Aplicação and supports FIFO claim.
 type JobStore interface {
-	Create(total int, fileName string, items []ItemLote) (Job, error)
+	Create(total int, fileName string, items []ItemCarga) (Job, error)
 	Get(id string) (Job, bool)
 	Running() (Job, bool)
 	ClaimNext() (Job, bool)
@@ -36,7 +54,7 @@ type JobStore interface {
 	MarkFailed(id string, errorMessage string) error
 }
 
-// EscolaStore updates Situação OCE on existing Escolas only.
-type EscolaStore interface {
-	ApplyBatch(items []ItemLote) error
+// PcpStore applies Planejado batches to the Registro PCP collection.
+type PcpStore interface {
+	ApplyBatch(items []ItemCarga) error
 }

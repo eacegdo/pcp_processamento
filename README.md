@@ -1,12 +1,12 @@
-# OCE Processamento
+# PCP Processamento
 
-API Go que recebe um CSV de Lote OCE, enfileira um Job de Aplicação e atualiza a Situação OCE das Escolas no Supabase.
+API Go que recebe um CSV de Carga de Planejamento, enfileira um Job de Aplicação e grava o Planejado na coleção de Registro PCP no Supabase.
 
 ## Pré-requisitos
 
-1. Tabela `public.oce_job` no Supabase — rode o SQL em [`docs/sql/oce_job.sql`](docs/sql/oce_job.sql) (SQL Editor).
-2. Função de batch — rode também [`docs/sql/aplicar_situacao_oce_lote.sql`](docs/sql/aplicar_situacao_oce_lote.sql).
-3. Tabela `public.escola` já existente, com `inep` e as colunas `oce_tipo_acesso`, `oce_status`, `oce_pendencia`.
+1. Tabela `public.pcp` — rode [`docs/sql/pcp.sql`](docs/sql/pcp.sql).
+2. Tabela `public.pcp_job` — rode [`docs/sql/pcp_job.sql`](docs/sql/pcp_job.sql).
+3. Função de batch — rode [`docs/sql/aplicar_carga_planejamento.sql`](docs/sql/aplicar_carga_planejamento.sql).
 4. Arquivo `.env` local (copie de `.env.example`):
 
 ```bash
@@ -17,27 +17,29 @@ cp .env.example .env
 ## Subir o serviço
 
 ```bash
-go run ./cmd/oce-processamento
+go run ./cmd/pcp-processamento
 ```
 
 Sobe HTTP + worker no mesmo processo (padrão `:8080`).
 
-## Enviar um Lote OCE
+## Enviar uma Carga de Planejamento
 
 ```bash
-curl -X POST http://localhost:8080/v1/lotes \
+curl -X POST http://localhost:8080/v1/cargas \
   -H "X-API-Key: $API_KEY" \
-  -F "file=@lote.csv"
+  -F "file=@carga.csv"
 ```
 
-Resposta: `{"id":"<uuid>"}` do Job de Aplicação. Acompanhe o progresso na tabela `oce_job` (Bubble / Supabase). A Situação OCE aplicada fica em `escola` (só as três colunas OCE, por INEP).
+Resposta: `{"id":"<uuid>"}` do Job de Aplicação. Acompanhe o progresso em `pcp_job`. O Planejado fica em `pcp` (`tipo = planejado`).
 
 CSV esperado (`,` ou `;`):
 
 ```csv
-inep,oce_tipo_acesso,oce_status_final,oce_pendencia
-12345678,presencial,ativo,nenhuma
+data,fase,regional,fornecedor,cnpj,quantidade
+18/08/2026,4.2,NE-I,NUH DIGITAL,12.345.678/0001-99,10
 ```
+
+Data em `DD/MM/AAAA`. Quantidade inteira. CNPJ como veio. `fornecedor` (nome) é opcional. Regional é a sigla (`NO`, `NE-I`, `NE-II`, `SUSE`, `COSE`); o serviço preenche `regional_nome`.
 
 ## Testes automatizados
 
@@ -45,9 +47,9 @@ inep,oce_tipo_acesso,oce_status_final,oce_pendencia
 go test ./...
 ```
 
-Usam stores em memória e um PostgREST falso (`httptest`) — não precisam do Supabase real.
+Usam stores em memória e um PostgREST falso — não precisam do Supabase real.
 
 ## Colunas tocadas no Supabase
 
-- `oce_job`: `status`, `total`, `processadas`, `file_name`, `error_message` (e `id` gerado pelo banco)
-- `escola`: apenas `oce_tipo_acesso`, `oce_status`, `oce_pendencia` via RPC `aplicar_situacao_oce_lote` (UPDATE em lote por INEP; sem insert/upsert)
+- `pcp_job`: `status`, `total`, `processadas`, `file_name`, `error_message` (e `id` gerado pelo banco)
+- `pcp`: Planejado via RPC `aplicar_carga_planejamento` (upsert pela chave data + fase + regional + CNPJ; chave nova com quantidade 0 não insere)

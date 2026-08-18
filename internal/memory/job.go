@@ -4,7 +4,7 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
-	"github.com/wellington/oce_processamento/internal/domain"
+	"github.com/wellington/pcp_processamento/internal/domain"
 )
 
 // JobStore is an in-memory JobStore.
@@ -19,7 +19,7 @@ func NewJobStore() *JobStore {
 	return &JobStore{byID: make(map[string]*domain.Job)}
 }
 
-func (s *JobStore) Create(total int, fileName string, items []domain.ItemLote) (domain.Job, error) {
+func (s *JobStore) Create(total int, fileName string, items []domain.ItemCarga) (domain.Job, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -30,7 +30,7 @@ func (s *JobStore) Create(total int, fileName string, items []domain.ItemLote) (
 		Total:     total,
 		Restantes: total,
 		FileName:  fileName,
-		Items:     append([]domain.ItemLote(nil), items...),
+		Items:     append([]domain.ItemCarga(nil), items...),
 	}
 	s.byID[id] = job
 	s.fifo = append(s.fifo, id)
@@ -127,7 +127,7 @@ func (s *JobStore) MarkFailed(id string, errorMessage string) error {
 
 func cloneJob(job *domain.Job) domain.Job {
 	cp := *job
-	cp.Items = append([]domain.ItemLote(nil), job.Items...)
+	cp.Items = append([]domain.ItemCarga(nil), job.Items...)
 	cp.Restantes = cp.Total - cp.Processadas
 	return cp
 }

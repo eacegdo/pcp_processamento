@@ -9,10 +9,10 @@ import (
 	"net/url"
 	"sync"
 
-	"github.com/wellington/oce_processamento/internal/domain"
+	"github.com/wellington/pcp_processamento/internal/domain"
 )
 
-// JobStore dual-writes Job metadata to oce_job while keeping lote items in process memory.
+// JobStore dual-writes Job metadata to pcp_job while keeping carga items in process memory.
 type JobStore struct {
 	client *Client
 
@@ -29,7 +29,7 @@ func NewJobStore(supabaseURL, serviceRoleKey string, httpClient *http.Client) *J
 	}
 }
 
-func (s *JobStore) Create(total int, fileName string, items []domain.ItemLote) (domain.Job, error) {
+func (s *JobStore) Create(total int, fileName string, items []domain.ItemCarga) (domain.Job, error) {
 	payload := map[string]any{
 		"status":      "queued",
 		"total":       total,
@@ -40,7 +40,7 @@ func (s *JobStore) Create(total int, fileName string, items []domain.ItemLote) (
 	if err != nil {
 		return domain.Job{}, err
 	}
-	resp, err := s.client.do(http.MethodPost, "/oce_job", bytes.NewReader(body), "return=representation")
+	resp, err := s.client.do(http.MethodPost, "/pcp_job", bytes.NewReader(body), "return=representation")
 	if err != nil {
 		return domain.Job{}, err
 	}
@@ -56,10 +56,10 @@ func (s *JobStore) Create(total int, fileName string, items []domain.ItemLote) (
 		FileName string `json:"file_name"`
 	}
 	if err := json.Unmarshal(raw, &rows); err != nil {
-		return domain.Job{}, fmt.Errorf("decode oce_job create: %w", err)
+		return domain.Job{}, fmt.Errorf("decode pcp_job create: %w", err)
 	}
 	if len(rows) == 0 || rows[0].ID == "" {
-		return domain.Job{}, fmt.Errorf("oce_job create sem id")
+		return domain.Job{}, fmt.Errorf("pcp_job create sem id")
 	}
 
 	job := &domain.Job{
@@ -68,7 +68,7 @@ func (s *JobStore) Create(total int, fileName string, items []domain.ItemLote) (
 		Total:     total,
 		Restantes: total,
 		FileName:  fileName,
-		Items:     append([]domain.ItemLote(nil), items...),
+		Items:     append([]domain.ItemCarga(nil), items...),
 	}
 
 	s.mu.Lock()
@@ -205,7 +205,7 @@ func (s *JobStore) patch(id string, fields map[string]any) error {
 	}
 	q := url.Values{}
 	q.Set("id", "eq."+id)
-	resp, err := s.client.do(http.MethodPatch, "/oce_job?"+q.Encode(), bytes.NewReader(body), "return=minimal")
+	resp, err := s.client.do(http.MethodPatch, "/pcp_job?"+q.Encode(), bytes.NewReader(body), "return=minimal")
 	if err != nil {
 		return err
 	}
@@ -215,7 +215,7 @@ func (s *JobStore) patch(id string, fields map[string]any) error {
 
 func cloneJob(job *domain.Job) domain.Job {
 	cp := *job
-	cp.Items = append([]domain.ItemLote(nil), job.Items...)
+	cp.Items = append([]domain.ItemCarga(nil), job.Items...)
 	cp.Restantes = cp.Total - cp.Processadas
 	return cp
 }

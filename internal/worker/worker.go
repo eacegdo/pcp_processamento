@@ -1,6 +1,6 @@
 package worker
 
-import "github.com/wellington/oce_processamento/internal/domain"
+import "github.com/wellington/pcp_processamento/internal/domain"
 
 type Config struct {
 	BatchSize  int
@@ -9,12 +9,12 @@ type Config struct {
 
 type Worker struct {
 	jobs       domain.JobStore
-	escolas    domain.EscolaStore
+	pcp        domain.PcpStore
 	batchSize  int
 	maxRetries int
 }
 
-func New(jobs domain.JobStore, escolas domain.EscolaStore, cfg Config) *Worker {
+func New(jobs domain.JobStore, pcp domain.PcpStore, cfg Config) *Worker {
 	batchSize := cfg.BatchSize
 	if batchSize <= 0 {
 		batchSize = 200
@@ -23,7 +23,7 @@ func New(jobs domain.JobStore, escolas domain.EscolaStore, cfg Config) *Worker {
 	if maxRetries <= 0 {
 		maxRetries = 3
 	}
-	return &Worker{jobs: jobs, escolas: escolas, batchSize: batchSize, maxRetries: maxRetries}
+	return &Worker{jobs: jobs, pcp: pcp, batchSize: batchSize, maxRetries: maxRetries}
 }
 
 // ProcessNext claims the next queued Job (or continues a running one)
@@ -50,7 +50,7 @@ func (w *Worker) ProcessNext() bool {
 
 	var err error
 	for attempt := 0; attempt < w.maxRetries; attempt++ {
-		err = w.escolas.ApplyBatch(batch)
+		err = w.pcp.ApplyBatch(batch)
 		if err == nil {
 			break
 		}

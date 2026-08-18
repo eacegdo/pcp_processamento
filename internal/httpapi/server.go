@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/wellington/oce_processamento/internal/domain"
-	"github.com/wellington/oce_processamento/internal/lote"
+	"github.com/wellington/pcp_processamento/internal/domain"
+	"github.com/wellington/pcp_processamento/internal/lote"
 )
 
 type Server struct {
@@ -16,7 +16,7 @@ type Server struct {
 
 func NewServer(apiKey string, jobs domain.JobStore) *Server {
 	s := &Server{apiKey: apiKey, jobs: jobs, mux: http.NewServeMux()}
-	s.mux.HandleFunc("POST /v1/lotes", s.handleIngestLote)
+	s.mux.HandleFunc("POST /v1/cargas", s.handleIngestCarga)
 	return s
 }
 
@@ -24,7 +24,7 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	s.mux.ServeHTTP(rw, req)
 }
 
-func (s *Server) handleIngestLote(rw http.ResponseWriter, req *http.Request) {
+func (s *Server) handleIngestCarga(rw http.ResponseWriter, req *http.Request) {
 	if req.Header.Get("X-API-Key") != s.apiKey {
 		http.Error(rw, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 		return
@@ -32,7 +32,7 @@ func (s *Server) handleIngestLote(rw http.ResponseWriter, req *http.Request) {
 
 	file, header, err := req.FormFile("file")
 	if err != nil {
-		http.Error(rw, `{"error":"arquivo obrigatório"}`, http.StatusBadRequest)
+		http.Error(rw, `{"error":"carga obrigatória"}`, http.StatusBadRequest)
 		return
 	}
 	defer file.Close()

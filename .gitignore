@@ -9,7 +9,8 @@
 *.exe
 *.test
 *.out
-oce_processamento
+/pcp-processamento
+/oce_processamento
 
 # Go
 vendor/

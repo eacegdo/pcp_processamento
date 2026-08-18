@@ -6,14 +6,14 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
-	"github.com/wellington/oce_processamento/internal/config"
-	"github.com/wellington/oce_processamento/internal/httpapi"
-	"github.com/wellington/oce_processamento/internal/supabase"
-	"github.com/wellington/oce_processamento/internal/worker"
+	"github.com/wellington/pcp_processamento/internal/config"
+	"github.com/wellington/pcp_processamento/internal/httpapi"
+	"github.com/wellington/pcp_processamento/internal/supabase"
+	"github.com/wellington/pcp_processamento/internal/worker"
 )
 
 func main() {
-	_ = godotenv.Load() // optional local .env; production uses real env vars
+	_ = godotenv.Load()
 
 	cfg, err := config.Load()
 	if err != nil {
@@ -21,8 +21,8 @@ func main() {
 	}
 
 	jobs := supabase.NewJobStore(cfg.SupabaseURL, cfg.SupabaseServiceRoleKey, nil)
-	escolas := supabase.NewEscolaStore(cfg.SupabaseURL, cfg.SupabaseServiceRoleKey, nil)
-	w := worker.New(jobs, escolas, worker.Config{
+	pcp := supabase.NewPcpStore(cfg.SupabaseURL, cfg.SupabaseServiceRoleKey, nil)
+	w := worker.New(jobs, pcp, worker.Config{
 		BatchSize:  cfg.BatchSize,
 		MaxRetries: cfg.BatchMaxRetries,
 	})

@@ -3,7 +3,7 @@ package config_test
 import (
 	"testing"
 
-	"github.com/wellington/oce_processamento/internal/config"
+	"github.com/wellington/pcp_processamento/internal/config"
 )
 
 func TestLoadExigeVariaveisObrigatorias(t *testing.T) {

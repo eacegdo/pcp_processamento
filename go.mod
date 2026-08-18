@@ -1,4 +1,4 @@
-module github.com/wellington/oce_processamento
+module github.com/wellington/pcp_processamento
 
 go 1.26.5
 
