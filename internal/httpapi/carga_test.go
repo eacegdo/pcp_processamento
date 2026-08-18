@@ -24,7 +24,7 @@ func TestIngestCargaAutenticadoRetornaIDDoJob(t *testing.T) {
 	srv := httpapi.NewServer(testAPIKey, jobs)
 
 	body, contentType := multipartCSV(t, "carga.csv", minimalCSV())
-	req := httptest.NewRequest(http.MethodPost, "/v1/cargas", body)
+	req := httptest.NewRequest(http.MethodPost, "/v1/planejamento", body)
 	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("X-API-Key", testAPIKey)
 
@@ -293,7 +293,7 @@ func TestIngestCargaSemAPIKeyValidaERejeitado(t *testing.T) {
 			srv := httpapi.NewServer(testAPIKey, jobs)
 
 			body, contentType := multipartCSV(t, "carga.csv", minimalCSV())
-			req := httptest.NewRequest(http.MethodPost, "/v1/cargas", body)
+			req := httptest.NewRequest(http.MethodPost, "/v1/planejamento", body)
 			req.Header.Set("Content-Type", contentType)
 			if tc.apiKey != "" {
 				req.Header.Set("X-API-Key", tc.apiKey)
@@ -319,7 +319,7 @@ func TestIngestCargaCSVInvalidoERejeitado(t *testing.T) {
 	srv := httpapi.NewServer(testAPIKey, jobs)
 
 	body, contentType := multipartCSV(t, "carga.csv", "foo,bar\n1,2\n")
-	req := httptest.NewRequest(http.MethodPost, "/v1/cargas", body)
+	req := httptest.NewRequest(http.MethodPost, "/v1/planejamento", body)
 	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("X-API-Key", testAPIKey)
 	rec := httptest.NewRecorder()
@@ -553,7 +553,7 @@ func TestIngestCargaBOMUTF8(t *testing.T) {
 func postCarga(t *testing.T, srv http.Handler, csv string) string {
 	t.Helper()
 	body, contentType := multipartCSV(t, "carga.csv", csv)
-	req := httptest.NewRequest(http.MethodPost, "/v1/cargas", body)
+	req := httptest.NewRequest(http.MethodPost, "/v1/planejamento", body)
 	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("X-API-Key", testAPIKey)
 	rec := httptest.NewRecorder()

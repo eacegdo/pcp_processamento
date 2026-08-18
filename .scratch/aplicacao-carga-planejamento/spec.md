@@ -85,7 +85,7 @@ O serviço deixa de tocar Escola e Situação OCE. Um chamador autorizado envia 
   - **JobStore** — mesmo contrato de fila FIFO; persiste numa tabela de Job PCP (não `oce_job`).
   - **PcpStore** — aplica batch de Planejado na coleção de Registro PCP; upsert pela chave; não calcula Programado.
   - **Worker** — um Job por vez; batches; retry curto; `success` / `failed` com progresso parcial preservado.
-- **Contrato HTTP:** `POST /v1/cargas` (deixa de ser `/v1/lotes`). Auth `X-API-Key`. Campo de arquivo `file`. Sucesso `201` com `{ "id": "..." }`. Sem API key: `401`, não cria Job. CSV inválido / sem linhas válidas: `400`, não cria Job.
+- **Contrato HTTP:** `POST /v1/planejamento` (deixa de ser `/v1/lotes` e `/v1/cargas`). Auth `X-API-Key`. Campo de arquivo `file`. Sucesso `201` com `{ "id": "..." }`. Sem API key: `401`, não cria Job. CSV inválido / sem linhas válidas: `400`, não cria Job.
 - **Progresso:** Bubble lê a tabela de Job via API Connector. A API Go não expõe GET de status.
 - **Coleção de Registro PCP** (tabela nova no Supabase), colunas:
   - `tipo` — `planejado` | `programado`

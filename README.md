@@ -24,22 +24,17 @@ Sobe HTTP + worker no mesmo processo (padrão `:8080`).
 
 ## Enviar uma Carga de Planejamento
 
+Modelo: [`docs/exemplos/carga_planejamento.csv`](docs/exemplos/carga_planejamento.csv). Copie e ajuste.
+
 ```bash
-curl -X POST http://localhost:8080/v1/cargas \
+curl -X POST http://localhost:8080/v1/planejamento \
   -H "X-API-Key: $API_KEY" \
-  -F "file=@carga.csv"
+  -F "file=@docs/exemplos/carga_planejamento.csv"
 ```
 
 Resposta: `{"id":"<uuid>"}` do Job de Aplicação. Acompanhe o progresso em `pcp_job`. O Planejado fica em `pcp` (`tipo = planejado`).
 
-CSV esperado (`,` ou `;`):
-
-```csv
-data,fase,regional,fornecedor,cnpj,quantidade
-18/08/2026,4.2,NE-I,NUH DIGITAL,12.345.678/0001-99,10
-```
-
-Data em `DD/MM/AAAA`. Quantidade inteira. CNPJ como veio. `fornecedor` (nome) é opcional. Regional é a sigla (`NO`, `NE-I`, `NE-II`, `SUSE`, `COSE`); o serviço preenche `regional_nome`.
+CSV (`,` ou `;`): `data,fase,regional,fornecedor,cnpj,quantidade`. Data em `DD/MM/AAAA`. Quantidade inteira. CNPJ como veio. `fornecedor` (nome) é opcional. Regional é a sigla (`NO`, `NE-I`, `NE-II`, `SUSE`, `COSE`); o serviço preenche `regional_nome`.
 
 ## Testes automatizados
 

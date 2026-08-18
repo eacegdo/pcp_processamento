@@ -16,7 +16,7 @@ type Server struct {
 
 func NewServer(apiKey string, jobs domain.JobStore) *Server {
 	s := &Server{apiKey: apiKey, jobs: jobs, mux: http.NewServeMux()}
-	s.mux.HandleFunc("POST /v1/cargas", s.handleIngestCarga)
+	s.mux.HandleFunc("POST /v1/planejamento", s.handleIngestCarga)
 	return s
 }
 
