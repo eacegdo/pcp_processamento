@@ -46,6 +46,10 @@ func (w *Worker) ProcessNext() bool {
 	if end > job.Total {
 		end = job.Total
 	}
+	if job.Tipo == domain.TipoProgramado {
+		start = 0
+		end = job.Total
+	}
 	batch := job.Items[start:end]
 
 	var err error

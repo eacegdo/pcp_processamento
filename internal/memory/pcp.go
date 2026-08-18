@@ -51,12 +51,12 @@ func (s *PcpStore) ApplyBatch(items []domain.ItemCarga) error {
 		s.failRemaining--
 		return errors.New("falha transitória no batch")
 	}
+	if len(items) > 0 && items[0].Tipo == domain.TipoProgramado {
+		s.applyEspelhoProgramado(items)
+		return nil
+	}
 	for _, item := range items {
 		if item.Quantidade < 0 {
-			continue
-		}
-		if item.Tipo == domain.TipoProgramado {
-			s.applyProgramado(item)
 			continue
 		}
 		k := chavePlanejado(item.Data, item.Fase, item.Regional, item.FornecedorCNPJ)
@@ -83,6 +83,32 @@ func (s *PcpStore) ApplyBatch(items []domain.ItemCarga) error {
 		}
 	}
 	return nil
+}
+
+func (s *PcpStore) applyEspelhoProgramado(items []domain.ItemCarga) {
+	mes := time.Date(items[0].Data.Year(), items[0].Data.Month(), 1, 0, 0, 0, 0, time.UTC)
+	chavesRecebidas := make(map[string]struct{}, len(items))
+	for _, item := range items {
+		if item.Tipo != domain.TipoProgramado || item.Quantidade < 0 {
+			continue
+		}
+		if item.Data.Year() != mes.Year() || item.Data.Month() != mes.Month() {
+			continue
+		}
+		s.applyProgramado(item)
+		chavesRecebidas[chaveProgramado(item.Data, item.INEP)] = struct{}{}
+	}
+	for k, rec := range s.byChave {
+		if rec.Tipo != domain.TipoProgramado {
+			continue
+		}
+		if rec.Data.Year() != mes.Year() || rec.Data.Month() != mes.Month() {
+			continue
+		}
+		if _, ok := chavesRecebidas[k]; !ok {
+			delete(s.byChave, k)
+		}
+	}
 }
 
 func (s *PcpStore) applyProgramado(item domain.ItemCarga) {

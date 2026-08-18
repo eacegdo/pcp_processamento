@@ -34,6 +34,7 @@ type rawItem struct {
 
 // ParseJSON reads a JSON array of Programado objects, or {"itens":[...]}.
 // Invalid objects are skipped; last Data+INEP wins.
+// The civil month of the first valid item is the Espelho do Mês; other months are dropped.
 func ParseJSON(r io.Reader) ([]domain.ItemCarga, error) {
 	raw, err := io.ReadAll(r)
 	if err != nil {
@@ -64,9 +65,17 @@ func ParseJSON(r io.Reader) ([]domain.ItemCarga, error) {
 
 	byChave := make(map[string]domain.ItemCarga)
 	ordem := make([]string, 0)
+	var mes time.Time
+	temMes := false
 	for _, rawItem := range items {
 		item, ok := toItem(rawItem)
 		if !ok {
+			continue
+		}
+		if !temMes {
+			mes = time.Date(item.Data.Year(), item.Data.Month(), 1, 0, 0, 0, 0, time.UTC)
+			temMes = true
+		} else if item.Data.Year() != mes.Year() || item.Data.Month() != mes.Month() {
 			continue
 		}
 		k := item.Data.Format("2006-01-02") + "|" + item.INEP

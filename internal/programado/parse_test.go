@@ -48,6 +48,20 @@ func TestParseJSONEnvelopeItensEINEPNumero(t *testing.T) {
 	}
 }
 
+func TestParseJSONDescartaItemDeOutroMes(t *testing.T) {
+	raw := `[
+		{"data":"18/08/2026","fase":"4.2","regional":"NE-I","inep":"2"},
+		{"data":"01/09/2026","fase":"4.2","regional":"NE-I","inep":"8"}
+	]`
+	got, err := programado.ParseJSON(strings.NewReader(raw))
+	if err != nil {
+		t.Fatalf("ParseJSON: %v", err)
+	}
+	if len(got) != 1 || got[0].INEP != "2" {
+		t.Fatalf("got %+v, want só agosto inep 2", got)
+	}
+}
+
 func TestParseJSONVazioOuSemValidos(t *testing.T) {
 	if _, err := programado.ParseJSON(strings.NewReader(`{}`)); err == nil {
 		t.Fatal("expected error for empty envelope")
