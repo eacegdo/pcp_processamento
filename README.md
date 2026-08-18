@@ -24,6 +24,8 @@ go run ./cmd/pcp-processamento
 
 Sobe HTTP + worker no mesmo processo (padrão `:8080`).
 
+Contrato HTTP para o Bubble: [`docs/api.md`](docs/api.md). Curls de teste no topo desse arquivo.
+
 ## Enviar uma Carga de Planejamento
 
 Modelo: [`docs/exemplos/carga_planejamento.csv`](docs/exemplos/carga_planejamento.csv). Copie e ajuste.
@@ -34,7 +36,7 @@ curl -X POST http://localhost:8080/v1/planejamento \
   -F "file=@docs/exemplos/carga_planejamento.csv"
 ```
 
-Resposta: `{"id":"<uuid>"}` do Job de Aplicação. Acompanhe o progresso em `pcp_job`. O Planejado fica em `pcp` (`tipo = planejado`).
+Resposta: `{"id":"<uuid>","tipo":"planejado"}` do Job de Aplicação. Acompanhe o progresso em `pcp_job`. O Planejado fica em `pcp` (`tipo = planejado`).
 
 CSV (`,` ou `;`): `data,fase,regional,fornecedor,cnpj,quantidade`. Data em `DD/MM/AAAA`. Quantidade inteira. CNPJ como veio. `fornecedor` (nome) é opcional. Regional é a sigla (`NO`, `NE-I`, `NE-II`, `SUSE`, `COSE`); o serviço preenche `regional_nome`.
 
