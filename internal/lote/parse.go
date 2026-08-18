@@ -99,6 +99,7 @@ func parseRow(rec []string, idx colIdx) (domain.ItemCarga, bool) {
 		return domain.ItemCarga{}, false
 	}
 	return domain.ItemCarga{
+		Tipo:           domain.TipoPlanejado,
 		Data:           data.UTC(),
 		Fase:           fase,
 		Regional:       regional,

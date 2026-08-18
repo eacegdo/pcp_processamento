@@ -17,13 +17,23 @@ func NewPcpStore() *PcpStore {
 	return &PcpStore{byChave: make(map[string]domain.RegistroPCP)}
 }
 
-func chave(data time.Time, fase, regional, cnpj string) string {
+func chavePlanejado(data time.Time, fase, regional, cnpj string) string {
 	d := time.Date(data.Year(), data.Month(), data.Day(), 0, 0, 0, 0, time.UTC)
-	return d.Format("2006-01-02") + "|" + fase + "|" + regional + "|" + cnpj
+	return "p|" + d.Format("2006-01-02") + "|" + fase + "|" + regional + "|" + cnpj
+}
+
+func chaveProgramado(data time.Time, inep string) string {
+	d := time.Date(data.Year(), data.Month(), data.Day(), 0, 0, 0, 0, time.UTC)
+	return "g|" + d.Format("2006-01-02") + "|" + inep
 }
 
 func (s *PcpStore) Get(data time.Time, fase, regional, cnpj string) (domain.RegistroPCP, bool) {
-	v, ok := s.byChave[chave(data, fase, regional, cnpj)]
+	v, ok := s.byChave[chavePlanejado(data, fase, regional, cnpj)]
+	return v, ok
+}
+
+func (s *PcpStore) GetProgramado(data time.Time, inep string) (domain.RegistroPCP, bool) {
+	v, ok := s.byChave[chaveProgramado(data, inep)]
 	return v, ok
 }
 
@@ -45,7 +55,11 @@ func (s *PcpStore) ApplyBatch(items []domain.ItemCarga) error {
 		if item.Quantidade < 0 {
 			continue
 		}
-		k := chave(item.Data, item.Fase, item.Regional, item.FornecedorCNPJ)
+		if item.Tipo == domain.TipoProgramado {
+			s.applyProgramado(item)
+			continue
+		}
+		k := chavePlanejado(item.Data, item.Fase, item.Regional, item.FornecedorCNPJ)
 		existing, ok := s.byChave[k]
 		if ok {
 			existing.Quantidade = item.Quantidade
@@ -69,4 +83,37 @@ func (s *PcpStore) ApplyBatch(items []domain.ItemCarga) error {
 		}
 	}
 	return nil
+}
+
+func (s *PcpStore) applyProgramado(item domain.ItemCarga) {
+	k := chaveProgramado(item.Data, item.INEP)
+	existing, ok := s.byChave[k]
+	if ok {
+		existing.Fase = item.Fase
+		existing.Regional = item.Regional
+		existing.RegionalNome = item.RegionalNome
+		existing.UF = item.UF
+		existing.FornecedorNome = item.FornecedorNome
+		existing.FornecedorCNPJ = item.FornecedorCNPJ
+		existing.Quantidade = item.Quantidade
+		existing.Provisoria = item.Provisoria
+		s.byChave[k] = existing
+		return
+	}
+	if item.Quantidade == 0 {
+		return
+	}
+	s.byChave[k] = domain.RegistroPCP{
+		Tipo:           domain.TipoProgramado,
+		Data:           time.Date(item.Data.Year(), item.Data.Month(), item.Data.Day(), 0, 0, 0, 0, time.UTC),
+		Fase:           item.Fase,
+		Regional:       item.Regional,
+		RegionalNome:   item.RegionalNome,
+		UF:             item.UF,
+		INEP:           item.INEP,
+		FornecedorNome: item.FornecedorNome,
+		FornecedorCNPJ: item.FornecedorCNPJ,
+		Quantidade:     item.Quantidade,
+		Provisoria:     item.Provisoria,
+	}
 }

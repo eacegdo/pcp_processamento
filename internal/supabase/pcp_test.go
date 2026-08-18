@@ -79,6 +79,34 @@ func TestPcpStoreApplyBatchChamaRpcComBatchInteiro(t *testing.T) {
 	}
 }
 
+func TestPcpStoreApplyBatchProgramadoChamaRpcAplicarProgramado(t *testing.T) {
+	var gotPath string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	store := supabase.NewPcpStore(srv.URL, "service-role", srv.Client())
+	prov := false
+	err := store.ApplyBatch([]domain.ItemCarga{{
+		Tipo:           domain.TipoProgramado,
+		Data:           time.Date(2026, 8, 18, 0, 0, 0, 0, time.UTC),
+		Fase:           "4.2",
+		Regional:       "NE-I",
+		INEP:           "12345678",
+		Quantidade:     1,
+		Provisoria:     &prov,
+		FornecedorCNPJ: "12.345.678/0001-99",
+	}})
+	if err != nil {
+		t.Fatalf("ApplyBatch: %v", err)
+	}
+	if !strings.HasSuffix(gotPath, "/rpc/aplicar_programado") {
+		t.Fatalf("path = %q", gotPath)
+	}
+}
+
 func TestPcpStoreApplyBatchVazioNaoChamaSupabase(t *testing.T) {
 	calls := 0
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

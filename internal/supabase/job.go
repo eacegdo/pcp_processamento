@@ -29,9 +29,10 @@ func NewJobStore(supabaseURL, serviceRoleKey string, httpClient *http.Client) *J
 	}
 }
 
-func (s *JobStore) Create(total int, fileName string, items []domain.ItemCarga) (domain.Job, error) {
+func (s *JobStore) Create(total int, tipo string, fileName string, items []domain.ItemCarga) (domain.Job, error) {
 	payload := map[string]any{
 		"status":      "queued",
+		"tipo":        tipo,
 		"total":       total,
 		"processadas": 0,
 		"file_name":   fileName,
@@ -64,6 +65,7 @@ func (s *JobStore) Create(total int, fileName string, items []domain.ItemCarga) 
 
 	job := &domain.Job{
 		ID:        rows[0].ID,
+		Tipo:      tipo,
 		Status:    "queued",
 		Total:     total,
 		Restantes: total,

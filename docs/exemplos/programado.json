@@ -1,0 +1,24 @@
+[
+  {
+    "data": "18/08/2026",
+    "fase": "4.2",
+    "regional": "NE-I",
+    "uf": "BA",
+    "inep": "12345678",
+    "fornecedor_nome": "Fornecedor Nordeste I",
+    "fornecedor_cnpj": "22.222.222/0001-22",
+    "quantidade": 1,
+    "provisoria": false
+  },
+  {
+    "data": "18/08/2026",
+    "fase": "4.2",
+    "regional": "NO",
+    "uf": "AM",
+    "inep": "87654321",
+    "fornecedor_nome": "Fornecedor Norte",
+    "fornecedor_cnpj": "11.111.111/0001-11",
+    "quantidade": 1,
+    "provisoria": true
+  }
+]

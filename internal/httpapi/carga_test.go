@@ -52,6 +52,9 @@ func TestIngestCargaAutenticadoRetornaIDDoJob(t *testing.T) {
 	if job.Status != "queued" {
 		t.Fatalf("job status = %q, want queued", job.Status)
 	}
+	if job.Tipo != domain.TipoPlanejado {
+		t.Fatalf("job tipo = %q, want planejado", job.Tipo)
+	}
 }
 
 func TestIngestCargaAplicaPlanejadoEJobSuccess(t *testing.T) {

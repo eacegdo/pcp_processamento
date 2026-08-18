@@ -19,13 +19,14 @@ func NewJobStore() *JobStore {
 	return &JobStore{byID: make(map[string]*domain.Job)}
 }
 
-func (s *JobStore) Create(total int, fileName string, items []domain.ItemCarga) (domain.Job, error) {
+func (s *JobStore) Create(total int, tipo string, fileName string, items []domain.ItemCarga) (domain.Job, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	id := uuid.NewString()
 	job := &domain.Job{
 		ID:        id,
+		Tipo:      tipo,
 		Status:    "queued",
 		Total:     total,
 		Restantes: total,

@@ -1,5 +1,6 @@
--- Coleção de Registro PCP (Planejado agora; Programado depois).
--- Unique parcial só para Planejado: data + fase + regional (sigla) + CNPJ como veio.
+-- Coleção de Registro PCP (Planejado e Programado).
+-- Unique parcial Planejado: data + fase + regional (sigla) + CNPJ como veio.
+-- Unique parcial Programado: data + INEP.
 
 create or replace function public.set_updated_at()
 returns trigger
@@ -31,6 +32,10 @@ create table public.pcp (
 create unique index if not exists pcp_planejado_chave_idx
   on public.pcp (data, fase, regional, fornecedor_cnpj)
   where tipo = 'planejado';
+
+create unique index if not exists pcp_programado_chave_idx
+  on public.pcp (data, inep)
+  where tipo = 'programado';
 
 create trigger trg_set_updated_at_pcp
 before update on public.pcp

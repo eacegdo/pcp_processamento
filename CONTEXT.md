@@ -1,6 +1,6 @@
 # PCP Processamento
 
-Contexto responsável por ingerir a Carga de Planejamento e persistir o Planejado. O Programado usará a mesma coleção de Registros PCP, calculado depois a partir das fontes operacionais; nesta etapa a coleção só precisa comportá-lo.
+Contexto responsável por ingerir a Carga de Planejamento e o Programado vindo do Bubble, persistindo ambos na coleção de Registros PCP.
 
 ## Language
 
@@ -25,7 +25,7 @@ Meta em número de escolas para uma data, Fase PCP, Regional PCP e Fornecedor PC
 _Avoid_: realizado, programado, meta genérica
 
 **Programado**:
-Escola associada a OSP válida, a ser gravada depois neste mesmo Registro PCP, com INEP preenchido. Fora do escopo da Carga de Planejamento.
+Escola associada a OSP válida, com INEP preenchido, enviada pelo Bubble como JSON já montado. Grava-se no mesmo Registro PCP. A Carga de Planejamento não traz Programado.
 _Avoid_: previsão avulsa, OSP (como se fosse o registro)
 
 **Carga de Planejamento**:
@@ -36,9 +36,13 @@ _Avoid_: upload, arquivo, import, Lote OCE
 Fornecedor da Rede Interna. No Registro PCP o CNPJ entra como veio na Carga de Planejamento (em geral com máscara) e é a identidade; o nome é só rótulo para visualização e pode vir vazio.
 _Avoid_: Fornecedor_eace (como identidade nesta coleção), fornecedor da OSP, fornecedor_re, CNPJ só-dígitos como forma canônica
 
-**Chave da Linha de Planejamento**:
-Identidade de um Planejado: Data + Fase PCP + Regional PCP (sigla como veio) + CNPJ como veio na carga. O nome do fornecedor e o nome da regional não entram na chave. Linha de Planejado sem CNPJ é inválida. Se a mesma chave repetir na Carga de Planejamento, a última ocorrência vence.
-_Avoid_: chave com nome do fornecedor, chave com nome da regional, chave com INEP (Planejado não tem Escola), chave com CNPJ normalizado
+**Chave da Linha de Programado**:
+Identidade de um Programado: Data + INEP. Se o mesmo INEP repetir na mesma data no JSON, a última ocorrência vence. Sem INEP ou sem data a linha não entra.
+_Avoid_: chave com CNPJ (isso é do Planejado)
+
+**Carga de Programado**:
+Conjunto de Programados recebido de uma vez em JSON (lista de objetos). O Bubble monta os objetos; este contexto só persiste.
+_Avoid_: arquivo CSV, Carga de Planejamento
 
 **Fase PCP**:
 Fase oficial da Escola, a mesma dimensão usada na Carga de Planejamento.
@@ -59,5 +63,5 @@ Persistência em massa do Planejado pela Chave da Linha de Planejamento. O valor
 _Avoid_: update em Escola, insert de cadastro escolar, sync completo, média ou soma com o valor anterior
 
 **Job de Aplicação**:
-Execução enfileirada de uma Aplicação da Carga, em batches, com progresso persistido e observável até sucesso ou falha. Um job por vez, FIFO.
+Execução enfileirada de uma Aplicação da Carga (Planejado) ou de uma Carga de Programado, em batches, com progresso persistido e observável até sucesso ou falha. Um job por vez, FIFO. O Tipo PCP do Job (`planejado` ou `programado`) identifica a origem.
 _Avoid_: task genérica, upload em andamento

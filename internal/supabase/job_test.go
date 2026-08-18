@@ -50,14 +50,14 @@ func TestJobStoreCreatePersistePcpJobEMantemItensLocais(t *testing.T) {
 	defer srv.Close()
 
 	store := supabase.NewJobStore(srv.URL, "service-role", srv.Client())
-	job, err := store.Create(1, "carga.csv", []domain.ItemCarga{sampleItem()})
+	job, err := store.Create(1, domain.TipoPlanejado, "carga.csv", []domain.ItemCarga{sampleItem()})
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
 	if job.ID != "11111111-1111-1111-1111-111111111111" {
 		t.Fatalf("id = %q", job.ID)
 	}
-	if job.Status != "queued" || job.Total != 1 || job.FileName != "carga.csv" {
+	if job.Status != "queued" || job.Total != 1 || job.FileName != "carga.csv" || job.Tipo != domain.TipoPlanejado {
 		t.Fatalf("job = %+v", job)
 	}
 	if len(job.Items) != 1 || job.Items[0].FornecedorCNPJ != "12.345.678/0001-99" {
@@ -71,12 +71,15 @@ func TestJobStoreCreatePersistePcpJobEMantemItensLocais(t *testing.T) {
 	}
 	body := posts[0]
 	allowed := map[string]bool{
-		"status": true, "total": true, "processadas": true, "file_name": true,
+		"status": true, "tipo": true, "total": true, "processadas": true, "file_name": true,
 	}
 	for k := range body {
 		if !allowed[k] {
 			t.Fatalf("unexpected column %q in pcp_job insert: %v", k, body)
 		}
+	}
+	if body["tipo"] != domain.TipoPlanejado {
+		t.Fatalf("tipo = %v, want planejado", body["tipo"])
 	}
 }
 
@@ -113,7 +116,7 @@ func TestJobStoreClaimNextEProgressoAtualizamPcpJob(t *testing.T) {
 
 	store := supabase.NewJobStore(srv.URL, "service-role", srv.Client())
 	items := []domain.ItemCarga{sampleItem(), sampleItem()}
-	job, err := store.Create(2, "a.csv", items)
+	job, err := store.Create(2, domain.TipoPlanejado, "a.csv", items)
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -157,7 +160,7 @@ func TestJobStoreMarkFailedPreservaProgressoParcial(t *testing.T) {
 	defer srv.Close()
 
 	store := supabase.NewJobStore(srv.URL, "service-role", srv.Client())
-	job, _ := store.Create(3, "", []domain.ItemCarga{sampleItem(), sampleItem(), sampleItem()})
+	job, _ := store.Create(3, domain.TipoProgramado, "", []domain.ItemCarga{sampleItem(), sampleItem(), sampleItem()})
 	_, _ = store.ClaimNext()
 	_ = store.MarkProgress(job.ID, 1)
 	if err := store.MarkFailed(job.ID, "falha transitória no batch"); err != nil {

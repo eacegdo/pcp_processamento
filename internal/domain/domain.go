@@ -20,20 +20,25 @@ type RegistroPCP struct {
 	Provisoria     *bool
 }
 
-// ItemCarga is one Planejado line to apply from a Carga de Planejamento.
+// ItemCarga is one line to apply: Planejado (Carga de Planejamento) or Programado (JSON do Bubble).
 type ItemCarga struct {
+	Tipo           string
 	Data           time.Time
 	Fase           string
 	Regional       string
 	RegionalNome   string
+	UF             string
+	INEP           string
 	FornecedorNome string
 	FornecedorCNPJ string
 	Quantidade     int
+	Provisoria     *bool
 }
 
 // Job is an Aplicação da Carga execution with observable progress.
 type Job struct {
 	ID           string
+	Tipo         string
 	Status       string
 	Total        int
 	Processadas  int
@@ -45,7 +50,7 @@ type Job struct {
 
 // JobStore persists Jobs de Aplicação and supports FIFO claim.
 type JobStore interface {
-	Create(total int, fileName string, items []ItemCarga) (Job, error)
+	Create(total int, tipo string, fileName string, items []ItemCarga) (Job, error)
 	Get(id string) (Job, bool)
 	Running() (Job, bool)
 	ClaimNext() (Job, bool)

@@ -1,13 +1,15 @@
 # PCP Processamento
 
-API Go que recebe um CSV de Carga de Planejamento, enfileira um Job de Aplicação e grava o Planejado na coleção de Registro PCP no Supabase.
+API Go que recebe a Carga de Planejamento (CSV) e o Programado (JSON do Bubble), enfileira um Job de Aplicação e grava na coleção de Registro PCP no Supabase.
 
 ## Pré-requisitos
 
 1. Tabela `public.pcp` — rode [`docs/sql/pcp.sql`](docs/sql/pcp.sql).
 2. Tabela `public.pcp_job` — rode [`docs/sql/pcp_job.sql`](docs/sql/pcp_job.sql).
-3. Função de batch — rode [`docs/sql/aplicar_carga_planejamento.sql`](docs/sql/aplicar_carga_planejamento.sql).
-4. Arquivo `.env` local (copie de `.env.example`):
+3. Função de batch do Planejado — rode [`docs/sql/aplicar_carga_planejamento.sql`](docs/sql/aplicar_carga_planejamento.sql).
+4. Função e índice do Programado — rode [`docs/sql/aplicar_programado.sql`](docs/sql/aplicar_programado.sql).
+5. Coluna `tipo` em `pcp_job` — rode [`docs/sql/pcp_job_tipo.sql`](docs/sql/pcp_job_tipo.sql) se a tabela já existia.
+6. Arquivo `.env` local (copie de `.env.example`):
 
 ```bash
 cp .env.example .env
@@ -36,6 +38,19 @@ Resposta: `{"id":"<uuid>"}` do Job de Aplicação. Acompanhe o progresso em `pcp
 
 CSV (`,` ou `;`): `data,fase,regional,fornecedor,cnpj,quantidade`. Data em `DD/MM/AAAA`. Quantidade inteira. CNPJ como veio. `fornecedor` (nome) é opcional. Regional é a sigla (`NO`, `NE-I`, `NE-II`, `SUSE`, `COSE`); o serviço preenche `regional_nome`.
 
+## Enviar Programado (JSON do Bubble)
+
+Modelo: [`docs/exemplos/programado.json`](docs/exemplos/programado.json). Array de objetos, ou `{"itens":[...]}`. Cerca de 3.000 itens cabem numa requisição (limite 16 MB). A API enfileira um Job e responde na hora; o worker grava em batches.
+
+```bash
+curl -X POST http://localhost:8080/v1/programado \
+  -H "X-API-Key: $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d @docs/exemplos/programado.json
+```
+
+Campos: `data` (`DD/MM/AAAA` ou `YYYY-MM-DD`), `fase`, `regional` (sigla), `uf`, `inep` (texto ou número), `fornecedor_nome`, `fornecedor_cnpj`, `quantidade` (default 1), `provisoria`. Identidade: **data + INEP**. Última ocorrência vence. Objeto sem INEP, data, fase ou regional é ignorado.
+
 ## Testes automatizados
 
 ```bash
@@ -46,5 +61,5 @@ Usam stores em memória e um PostgREST falso — não precisam do Supabase real.
 
 ## Colunas tocadas no Supabase
 
-- `pcp_job`: `status`, `total`, `processadas`, `file_name`, `error_message` (e `id` gerado pelo banco)
-- `pcp`: Planejado via RPC `aplicar_carga_planejamento` (upsert pela chave data + fase + regional + CNPJ; chave nova com quantidade 0 não insere)
+- `pcp_job`: `status`, `tipo` (`planejado` ou `programado`), `total`, `processadas`, `file_name`, `error_message` (e `id` gerado pelo banco)
+- `pcp`: Planejado via RPC `aplicar_carga_planejamento`; Programado via RPC `aplicar_programado` (upsert pela chave data + INEP)
