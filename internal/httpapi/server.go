@@ -19,6 +19,7 @@ type Server struct {
 
 func NewServer(apiKey string, jobs domain.JobStore) *Server {
 	s := &Server{apiKey: apiKey, jobs: jobs, mux: http.NewServeMux()}
+	s.mux.HandleFunc("GET /", s.handleHealth)
 	s.mux.HandleFunc("POST /v1/planejamento", s.handleIngestCarga)
 	s.mux.HandleFunc("POST /v1/programado", s.handleIngestProgramado)
 	return s
@@ -26,6 +27,12 @@ func NewServer(apiKey string, jobs domain.JobStore) *Server {
 
 func (s *Server) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	s.mux.ServeHTTP(rw, req)
+}
+
+func (s *Server) handleHealth(rw http.ResponseWriter, _ *http.Request) {
+	rw.Header().Set("Content-Type", "application/json")
+	rw.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(rw).Encode(map[string]string{"status": "ok"})
 }
 
 func (s *Server) handleIngestCarga(rw http.ResponseWriter, req *http.Request) {

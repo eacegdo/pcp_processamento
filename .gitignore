@@ -10,7 +10,6 @@
 *.test
 *.out
 /pcp-processamento
-/oce_processamento
 
 # Go
 vendor/

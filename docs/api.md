@@ -13,6 +13,12 @@ Na raiz do repo, com a API no ar (`:8080`) e `.env` preenchido:
 set -a && source .env && set +a
 ```
 
+**No ar?** — espera `200` e `{"status":"ok"}` (sem API key):
+
+```bash
+curl -sS http://localhost:8080/
+```
+
 **Planejado** (CSV modelo) — espera `201` e `"tipo":"planejado"`:
 
 ```bash
@@ -76,6 +82,10 @@ X-API-Key: <API_KEY>
 A chave é a variável `API_KEY` do serviço. Sem ela, ou com valor diferente: `401` e `{"error":"unauthorized"}`. Nenhum Job é criado.
 
 Não há JWT nem usuário final nesta API.
+
+## Health
+
+`GET /` — sem API key. Responde `200` e `{"status":"ok"}` se o processo HTTP está no ar. Não consulta o Supabase. Use no EasyPanel como health check.
 
 ## Resposta de sucesso (os dois POSTs)
 
@@ -259,9 +269,8 @@ Planejado aplica em batches de ~200. Programado aplica a carga do Job de uma vez
 
 ## O que esta API não faz
 
-- GET de Job ou de `pcp`
+- GET de Job ou de `pcp` (só `GET /` de health)
 - Autenticação de usuário final
 - Upload do Programado como arquivo
 - Paginação do JSON (um POST = o mês)
 - Realizado
-- Mexer em `escola` ou em Lote OCE
