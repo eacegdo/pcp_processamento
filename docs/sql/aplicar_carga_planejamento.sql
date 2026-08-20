@@ -1,4 +1,6 @@
 -- Aplica a Carga de Planejamento.
+-- Com CNPJ: chave data + fase + regional + CNPJ.
+-- Sem CNPJ: chave data + fase + regional + nome do fornecedor.
 -- Chave existente: atualiza quantidade, nome do fornecedor e regional_nome (inclusive para zero).
 -- Chave nova e quantidade > 0: insere tipo planejado.
 -- Chave nova e quantidade = 0: não insere.
@@ -12,6 +14,7 @@ set search_path = public
 as $$
 declare
   r record;
+  cnpj_chave text;
 begin
   for r in
     select *
@@ -29,16 +32,32 @@ begin
       continue;
     end if;
 
-    update public.pcp as p
-    set
-      quantidade = r.quantidade,
-      fornecedor_nome = r.fornecedor_nome,
-      regional_nome = r.regional_nome
-    where p.tipo = 'planejado'
-      and p.data = r.data
-      and p.fase = r.fase
-      and p.regional = r.regional
-      and p.fornecedor_cnpj = r.fornecedor_cnpj;
+    cnpj_chave := coalesce(r.fornecedor_cnpj, '');
+
+    if cnpj_chave <> '' then
+      update public.pcp as p
+      set
+        quantidade = r.quantidade,
+        fornecedor_nome = r.fornecedor_nome,
+        regional_nome = r.regional_nome
+      where p.tipo = 'planejado'
+        and p.data = r.data
+        and p.fase = r.fase
+        and p.regional = r.regional
+        and p.fornecedor_cnpj = cnpj_chave;
+    else
+      update public.pcp as p
+      set
+        quantidade = r.quantidade,
+        fornecedor_nome = r.fornecedor_nome,
+        regional_nome = r.regional_nome
+      where p.tipo = 'planejado'
+        and p.data = r.data
+        and p.fase = r.fase
+        and p.regional = r.regional
+        and p.fornecedor_cnpj = ''
+        and coalesce(p.fornecedor_nome, '') = coalesce(r.fornecedor_nome, '');
+    end if;
 
     if found then
       continue;
@@ -61,7 +80,7 @@ begin
         r.regional,
         r.regional_nome,
         r.fornecedor_nome,
-        r.fornecedor_cnpj,
+        cnpj_chave,
         r.quantidade
       );
     end if;

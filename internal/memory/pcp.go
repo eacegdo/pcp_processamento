@@ -17,9 +17,13 @@ func NewPcpStore() *PcpStore {
 	return &PcpStore{byChave: make(map[string]domain.RegistroPCP)}
 }
 
-func chavePlanejado(data time.Time, fase, regional, cnpj string) string {
+func chavePlanejado(data time.Time, fase, regional, cnpj, nome string) string {
 	d := time.Date(data.Year(), data.Month(), data.Day(), 0, 0, 0, 0, time.UTC)
-	return "p|" + d.Format("2006-01-02") + "|" + fase + "|" + regional + "|" + cnpj
+	base := "p|" + d.Format("2006-01-02") + "|" + fase + "|" + regional + "|"
+	if cnpj != "" {
+		return base + cnpj
+	}
+	return base + "|" + nome
 }
 
 func chaveProgramado(data time.Time, inep string) string {
@@ -28,7 +32,12 @@ func chaveProgramado(data time.Time, inep string) string {
 }
 
 func (s *PcpStore) Get(data time.Time, fase, regional, cnpj string) (domain.RegistroPCP, bool) {
-	v, ok := s.byChave[chavePlanejado(data, fase, regional, cnpj)]
+	v, ok := s.byChave[chavePlanejado(data, fase, regional, cnpj, "")]
+	return v, ok
+}
+
+func (s *PcpStore) GetPorNome(data time.Time, fase, regional, nome string) (domain.RegistroPCP, bool) {
+	v, ok := s.byChave[chavePlanejado(data, fase, regional, "", nome)]
 	return v, ok
 }
 
@@ -59,7 +68,7 @@ func (s *PcpStore) ApplyBatch(items []domain.ItemCarga) error {
 		if item.Quantidade < 0 {
 			continue
 		}
-		k := chavePlanejado(item.Data, item.Fase, item.Regional, item.FornecedorCNPJ)
+		k := chavePlanejado(item.Data, item.Fase, item.Regional, item.FornecedorCNPJ, item.FornecedorNome)
 		existing, ok := s.byChave[k]
 		if ok {
 			existing.Quantidade = item.Quantidade

@@ -35,9 +35,13 @@ create table public.pcp (
   updated_at timestamp with time zone not null default now()
 );
 
-create unique index pcp_planejado_chave_idx
+create unique index pcp_planejado_chave_cnpj_idx
   on public.pcp (data, fase, regional, fornecedor_cnpj)
-  where tipo = 'planejado';
+  where tipo = 'planejado' and fornecedor_cnpj <> '';
+
+create unique index pcp_planejado_chave_nome_idx
+  on public.pcp (data, fase, regional, (coalesce(fornecedor_nome, '')))
+  where tipo = 'planejado' and fornecedor_cnpj = '';
 
 create unique index pcp_programado_chave_idx
   on public.pcp (data, inep)
@@ -86,6 +90,7 @@ set search_path = public
 as $$
 declare
   r record;
+  cnpj_chave text;
 begin
   for r in
     select *
@@ -103,16 +108,32 @@ begin
       continue;
     end if;
 
-    update public.pcp as p
-    set
-      quantidade = r.quantidade,
-      fornecedor_nome = r.fornecedor_nome,
-      regional_nome = r.regional_nome
-    where p.tipo = 'planejado'
-      and p.data = r.data
-      and p.fase = r.fase
-      and p.regional = r.regional
-      and p.fornecedor_cnpj = r.fornecedor_cnpj;
+    cnpj_chave := coalesce(r.fornecedor_cnpj, '');
+
+    if cnpj_chave <> '' then
+      update public.pcp as p
+      set
+        quantidade = r.quantidade,
+        fornecedor_nome = r.fornecedor_nome,
+        regional_nome = r.regional_nome
+      where p.tipo = 'planejado'
+        and p.data = r.data
+        and p.fase = r.fase
+        and p.regional = r.regional
+        and p.fornecedor_cnpj = cnpj_chave;
+    else
+      update public.pcp as p
+      set
+        quantidade = r.quantidade,
+        fornecedor_nome = r.fornecedor_nome,
+        regional_nome = r.regional_nome
+      where p.tipo = 'planejado'
+        and p.data = r.data
+        and p.fase = r.fase
+        and p.regional = r.regional
+        and p.fornecedor_cnpj = ''
+        and coalesce(p.fornecedor_nome, '') = coalesce(r.fornecedor_nome, '');
+    end if;
 
     if found then
       continue;
@@ -135,7 +156,7 @@ begin
         r.regional,
         r.regional_nome,
         r.fornecedor_nome,
-        r.fornecedor_cnpj,
+        cnpj_chave,
         r.quantidade
       );
     end if;

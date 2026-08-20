@@ -33,3 +33,56 @@ func TestParseCSVSemLinhasValidasERejeitado(t *testing.T) {
 		t.Fatal("expected error for csv sem linhas válidas")
 	}
 }
+
+func TestParseCSVAceitaCNPJVazioIdentificandoPeloNome(t *testing.T) {
+	csv := "data,fase,regional,fornecedor,cnpj,quantidade\n" +
+		"01/07/2026,5,NE-I,ARAUJO E ALMEIDA,,4\n" +
+		"01/07/2026,5,NE-I,NMA SERVIÇOS,,7\n"
+	items, err := lote.ParseCSV(strings.NewReader(csv))
+	if err != nil {
+		t.Fatalf("ParseCSV: %v", err)
+	}
+	if len(items) != 2 {
+		t.Fatalf("len = %d, want 2", len(items))
+	}
+	if items[0].FornecedorNome != "ARAUJO E ALMEIDA" || items[0].FornecedorCNPJ != "" || items[0].Quantidade != 4 {
+		t.Fatalf("item0 = %+v", items[0])
+	}
+	if items[1].FornecedorNome != "NMA SERVIÇOS" || items[1].FornecedorCNPJ != "" || items[1].Quantidade != 7 {
+		t.Fatalf("item1 = %+v", items[1])
+	}
+}
+
+func TestParseCSVAceitaSemColunaCNPJ(t *testing.T) {
+	csv := "data,fase,regional,fornecedor,quantidade\n" +
+		"01/07/2026,5,NE-I,ARAUJO E ALMEIDA,4\n"
+	items, err := lote.ParseCSV(strings.NewReader(csv))
+	if err != nil {
+		t.Fatalf("ParseCSV: %v", err)
+	}
+	if len(items) != 1 || items[0].FornecedorCNPJ != "" || items[0].FornecedorNome != "ARAUJO E ALMEIDA" {
+		t.Fatalf("item = %+v", items[0])
+	}
+}
+
+func TestParseCSVSemCNPJESemNomeEIgnorada(t *testing.T) {
+	csv := "data,fase,regional,fornecedor,cnpj,quantidade\n" +
+		"01/07/2026,5,NE-I,,,4\n"
+	_, err := lote.ParseCSV(strings.NewReader(csv))
+	if err == nil {
+		t.Fatal("expected error for csv sem linhas válidas")
+	}
+}
+
+func TestParseCSVUltimaOcorrenciaVenceSemCNPJ(t *testing.T) {
+	csv := "data,fase,regional,fornecedor,cnpj,quantidade\n" +
+		"01/07/2026,5,NE-I,ARAUJO E ALMEIDA,,4\n" +
+		"01/07/2026,5,NE-I,ARAUJO E ALMEIDA,,9\n"
+	items, err := lote.ParseCSV(strings.NewReader(csv))
+	if err != nil {
+		t.Fatalf("ParseCSV: %v", err)
+	}
+	if len(items) != 1 || items[0].Quantidade != 9 {
+		t.Fatalf("items = %+v", items)
+	}
+}

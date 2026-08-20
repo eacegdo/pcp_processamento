@@ -1,5 +1,6 @@
 -- Coleção de Registro PCP (Planejado e Programado).
--- Unique parcial Planejado: data + fase + regional (sigla) + CNPJ como veio.
+-- Unique parcial Planejado: com CNPJ, data + fase + regional + CNPJ;
+-- sem CNPJ, data + fase + regional + nome do fornecedor.
 -- Unique parcial Programado: data + INEP.
 
 create or replace function public.set_updated_at()
@@ -29,9 +30,13 @@ create table public.pcp (
   updated_at timestamp with time zone not null default now()
 );
 
-create unique index if not exists pcp_planejado_chave_idx
+create unique index if not exists pcp_planejado_chave_cnpj_idx
   on public.pcp (data, fase, regional, fornecedor_cnpj)
-  where tipo = 'planejado';
+  where tipo = 'planejado' and fornecedor_cnpj <> '';
+
+create unique index if not exists pcp_planejado_chave_nome_idx
+  on public.pcp (data, fase, regional, (coalesce(fornecedor_nome, '')))
+  where tipo = 'planejado' and fornecedor_cnpj = '';
 
 create unique index if not exists pcp_programado_chave_idx
   on public.pcp (data, inep)

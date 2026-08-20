@@ -20,8 +20,8 @@ var regionalNomes = map[string]string{
 }
 
 // ParseCSV parses a Carga de Planejamento CSV (comma or semicolon).
-// Requires the six expected headers; invalid lines are skipped;
-// last Chave da Linha de Planejamento wins.
+// Requires data, fase, regional, fornecedor, quantidade headers; cnpj is optional.
+// Invalid lines are skipped; last Chave da Linha de Planejamento wins.
 func ParseCSV(r io.Reader) ([]domain.ItemCarga, error) {
 	data, err := io.ReadAll(r)
 	if err != nil {
@@ -86,8 +86,12 @@ func parseRow(rec []string, idx colIdx) (domain.ItemCarga, bool) {
 	fase := cell(rec, idx.fase)
 	regional := cell(rec, idx.regional)
 	cnpj := cell(rec, idx.cnpj)
+	nome := cell(rec, idx.fornecedor)
 	qtdStr := cell(rec, idx.quantidade)
-	if dataStr == "" || fase == "" || regional == "" || cnpj == "" || qtdStr == "" {
+	if dataStr == "" || fase == "" || regional == "" || qtdStr == "" {
+		return domain.ItemCarga{}, false
+	}
+	if cnpj == "" && nome == "" {
 		return domain.ItemCarga{}, false
 	}
 	data, err := time.Parse("02/01/2006", dataStr)
@@ -104,14 +108,18 @@ func parseRow(rec []string, idx colIdx) (domain.ItemCarga, bool) {
 		Fase:           fase,
 		Regional:       regional,
 		RegionalNome:   regionalNomes[regional],
-		FornecedorNome: cell(rec, idx.fornecedor),
+		FornecedorNome: nome,
 		FornecedorCNPJ: cnpj,
 		Quantidade:     qtd,
 	}, true
 }
 
 func chave(item domain.ItemCarga) string {
-	return item.Data.Format("2006-01-02") + "|" + item.Fase + "|" + item.Regional + "|" + item.FornecedorCNPJ
+	base := item.Data.Format("2006-01-02") + "|" + item.Fase + "|" + item.Regional + "|"
+	if item.FornecedorCNPJ != "" {
+		return base + item.FornecedorCNPJ
+	}
+	return base + "|" + item.FornecedorNome
 }
 
 func cell(rec []string, i int) string {
@@ -154,7 +162,7 @@ func mapHeader(header []string) (colIdx, error) {
 			idx.quantidade = i
 		}
 	}
-	if idx.data < 0 || idx.fase < 0 || idx.regional < 0 || idx.fornecedor < 0 || idx.cnpj < 0 || idx.quantidade < 0 {
+	if idx.data < 0 || idx.fase < 0 || idx.regional < 0 || idx.fornecedor < 0 || idx.quantidade < 0 {
 		return colIdx{}, fmt.Errorf("csv sem header esperado")
 	}
 	return idx, nil

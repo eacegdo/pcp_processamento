@@ -147,20 +147,20 @@ Delimitador `,` ou `;`. BOM UTF-8 ok. Header obrigatório (ordem livre, capitali
 | `data` | sim | `DD/MM/AAAA` |
 | `fase` | sim | texto (Fase PCP) |
 | `regional` | sim | sigla: `NO`, `NE-I`, `NE-II`, `SUSE`, `COSE` |
-| `fornecedor` | não | nome só para visualização |
-| `cnpj` | sim | como veio (máscara inclusa) |
+| `fornecedor` | se `cnpj` vazio | nome; identifica a linha quando não há CNPJ |
+| `cnpj` | não | como veio (máscara inclusa); vazio ok |
 | `quantidade` | sim | inteiro ≥ 0 |
 
 O serviço preenche `regional_nome`: `NO`→Norte, `NE-I`→Nordeste I, `NE-II`→Nordeste II, `SUSE`→Sudeste/Centro-Sul, `COSE`→Centro-Oeste/Minas. Sigla fora da lista grava a sigla e deixa o nome vazio.
 
 ### Identidade e regras
 
-Chave: **data + fase + regional (sigla) + CNPJ como veio**. Última ocorrência no arquivo vence.
+Chave: **data + fase + regional (sigla) + CNPJ**. Sem CNPJ, a chave usa o **nome do fornecedor**. Última ocorrência no arquivo vence.
 
 - Reenviar a mesma chave atualiza (10 vira 9; 10 vira 0).
 - Chave **nova** com quantidade `0` **não** grava.
 - Chave que **não veio** neste CSV **permanece**.
-- Linha sem data, fase, regional ou CNPJ, data em outro formato, ou quantidade não inteira: ignorada.
+- Linha sem data, fase, regional, sem CNPJ e sem nome, data em outro formato, ou quantidade não inteira: ignorada.
 - Sem nenhuma linha válida: `400`, Job não é criado.
 - `inep`, `uf` e `provisoria` ficam vazios no Planejado.
 

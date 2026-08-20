@@ -9,7 +9,8 @@ API Go que recebe a Carga de Planejamento (CSV) e o Programado (JSON do Bubble),
 3. Função de batch do Planejado — rode [`docs/sql/aplicar_carga_planejamento.sql`](docs/sql/aplicar_carga_planejamento.sql).
 4. Função e índice do Programado — rode [`docs/sql/aplicar_programado.sql`](docs/sql/aplicar_programado.sql).
 5. Coluna `tipo` em `pcp_job` — rode [`docs/sql/pcp_job_tipo.sql`](docs/sql/pcp_job_tipo.sql) se a tabela já existia.
-6. Arquivo `.env` local (copie de `.env.example`):
+6. CNPJ opcional no Planejado — rode [`docs/sql/pcp_planejado_cnpj_opcional.sql`](docs/sql/pcp_planejado_cnpj_opcional.sql) e de novo [`docs/sql/aplicar_carga_planejamento.sql`](docs/sql/aplicar_carga_planejamento.sql) se o índice antigo já existia.
+7. Arquivo `.env` local (copie de `.env.example`):
 
 ```bash
 cp .env.example .env
@@ -38,7 +39,7 @@ curl -X POST http://localhost:8080/v1/planejamento \
 
 Resposta: `{"id":"<uuid>","tipo":"planejado"}` do Job de Aplicação. Acompanhe o progresso em `pcp_job`. O Planejado fica em `pcp` (`tipo = planejado`).
 
-CSV (`,` ou `;`): `data,fase,regional,fornecedor,cnpj,quantidade`. Data em `DD/MM/AAAA`. Quantidade inteira. CNPJ como veio. `fornecedor` (nome) é opcional. Regional é a sigla (`NO`, `NE-I`, `NE-II`, `SUSE`, `COSE`); o serviço preenche `regional_nome`.
+CSV (`,` ou `;`): `data,fase,regional,fornecedor,cnpj,quantidade`. Data em `DD/MM/AAAA`. Quantidade inteira. `cnpj` é opcional (como veio, máscara inclusa). Sem CNPJ, a chave usa o nome em `fornecedor`. Regional é a sigla (`NO`, `NE-I`, `NE-II`, `SUSE`, `COSE`); o serviço preenche `regional_nome`.
 
 ## Enviar Programado (JSON do Bubble)
 

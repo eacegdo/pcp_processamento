@@ -438,6 +438,33 @@ func TestIngestCargaNomeFornecedorOpcionalECNPJComoVeio(t *testing.T) {
 	}
 }
 
+func TestIngestCargaCNPJOpcionalIdentificaPeloNome(t *testing.T) {
+	pcp := memory.NewPcpStore()
+	jobs := memory.NewJobStore()
+	w := worker.New(jobs, pcp, worker.Config{BatchSize: 200, MaxRetries: 3})
+	srv := httpapi.NewServer(testAPIKey, jobs)
+
+	postCarga(t, srv, "data,fase,regional,fornecedor,cnpj,quantidade\n"+
+		"01/07/2026,5,NE-I,ARAUJO E ALMEIDA,,4\n"+
+		"01/07/2026,5,NE-I,NMA SERVIÇOS,,7\n")
+	drain(w)
+
+	araujo, ok := pcp.GetPorNome(dia(2026, 7, 1), "5", "NE-I", "ARAUJO E ALMEIDA")
+	if !ok {
+		t.Fatal("expected ARAUJO E ALMEIDA")
+	}
+	nma, ok := pcp.GetPorNome(dia(2026, 7, 1), "5", "NE-I", "NMA SERVIÇOS")
+	if !ok {
+		t.Fatal("expected NMA SERVIÇOS")
+	}
+	if araujo.Quantidade != 4 || araujo.FornecedorCNPJ != "" {
+		t.Fatalf("araujo = %+v", araujo)
+	}
+	if nma.Quantidade != 7 || nma.FornecedorCNPJ != "" {
+		t.Fatalf("nma = %+v", nma)
+	}
+}
+
 func TestIngestCargaRegionalDesconhecidaGravaSiglaSemNome(t *testing.T) {
 	pcp := memory.NewPcpStore()
 	jobs := memory.NewJobStore()
