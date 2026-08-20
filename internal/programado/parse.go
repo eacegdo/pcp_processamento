@@ -98,7 +98,7 @@ func toItem(r rawItem) (domain.ItemCarga, bool) {
 	inep := parseINEP(r.INEP)
 	data, ok := parseData(strings.TrimSpace(r.Data))
 	fase := strings.TrimSpace(r.Fase)
-	regional := strings.TrimSpace(r.Regional)
+	regional, regionalNome := resolveRegional(r.Regional)
 	if inep == "" || !ok || fase == "" || regional == "" {
 		return domain.ItemCarga{}, false
 	}
@@ -114,7 +114,7 @@ func toItem(r rawItem) (domain.ItemCarga, bool) {
 		Data:           data,
 		Fase:           fase,
 		Regional:       regional,
-		RegionalNome:   regionalNomes[regional],
+		RegionalNome:   regionalNome,
 		UF:             strings.TrimSpace(r.UF),
 		INEP:           inep,
 		FornecedorNome: strings.TrimSpace(r.FornecedorNome),
@@ -122,6 +122,19 @@ func toItem(r rawItem) (domain.ItemCarga, bool) {
 		Quantidade:     qtd,
 		Provisoria:     r.Provisoria,
 	}, true
+}
+
+func resolveRegional(s string) (sigla, nome string) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return "", ""
+	}
+	for sig, n := range regionalNomes {
+		if strings.EqualFold(s, sig) || strings.EqualFold(s, n) {
+			return sig, n
+		}
+	}
+	return s, ""
 }
 
 func parseINEP(raw json.RawMessage) string {

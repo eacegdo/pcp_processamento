@@ -48,6 +48,36 @@ func TestParseJSONEnvelopeItensEINEPNumero(t *testing.T) {
 	}
 }
 
+func TestParseJSONAceitaRegionalPorSiglaOuNome(t *testing.T) {
+	cases := []struct {
+		in, sigla, nome string
+	}{
+		{"NO", "NO", "Norte"},
+		{"norte", "NO", "Norte"},
+		{"Norte", "NO", "Norte"},
+		{"NE-I", "NE-I", "Nordeste I"},
+		{"Nordeste I", "NE-I", "Nordeste I"},
+		{"NE-II", "NE-II", "Nordeste II"},
+		{"Nordeste II", "NE-II", "Nordeste II"},
+		{"SUSE", "SUSE", "Sudeste/Centro-Sul"},
+		{"Sudeste/Centro-Sul", "SUSE", "Sudeste/Centro-Sul"},
+		{"COSE", "COSE", "Centro-Oeste/Minas"},
+		{"Centro-Oeste/Minas", "COSE", "Centro-Oeste/Minas"},
+		{"NEI", "NEI", ""},
+	}
+	for _, tc := range cases {
+		raw := `[{"data":"18/08/2026","fase":"4.2","regional":"` + tc.in + `","inep":"1"}]`
+		got, err := programado.ParseJSON(strings.NewReader(raw))
+		if err != nil {
+			t.Fatalf("regional %q: %v", tc.in, err)
+		}
+		if got[0].Regional != tc.sigla || got[0].RegionalNome != tc.nome {
+			t.Fatalf("regional %q -> sigla=%q nome=%q, want %q %q",
+				tc.in, got[0].Regional, got[0].RegionalNome, tc.sigla, tc.nome)
+		}
+	}
+}
+
 func TestParseJSONDescartaItemDeOutroMes(t *testing.T) {
 	raw := `[
 		{"data":"18/08/2026","fase":"4.2","regional":"NE-I","inep":"2"},

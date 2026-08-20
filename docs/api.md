@@ -211,7 +211,7 @@ Array de objetos, ou `{"itens":[...]}`. Modelo: [`docs/exemplos/programado.json`
 | --- | --- | --- |
 | `data` | sim | `DD/MM/AAAA` ou `YYYY-MM-DD` |
 | `fase` | sim | texto (Fase PCP) |
-| `regional` | sim | mesma sigla do Planejado |
+| `regional` | sim | sigla (`NO`, `NE-I`, `NE-II`, `SUSE`, `COSE`) ou nome (`Norte`, `Nordeste I`, `Nordeste II`, `Sudeste/Centro-Sul`, `Centro-Oeste/Minas`) |
 | `inep` | sim | texto ou número |
 | `uf` | não | texto |
 | `fornecedor_nome` | não | texto |
@@ -219,7 +219,7 @@ Array de objetos, ou `{"itens":[...]}`. Modelo: [`docs/exemplos/programado.json`
 | `quantidade` | não | inteiro ≥ 0; omitido = `1` |
 | `provisoria` | não | boolean |
 
-`regional_nome` é preenchido pelo mesmo de-para do Planejado.
+Nome vira sigla na gravação (`Norte` → `regional = NO`, `regional_nome = Norte`). Sigla fora da lista grava como veio e deixa o nome vazio.
 
 ### Identidade e Espelho do Mês
 

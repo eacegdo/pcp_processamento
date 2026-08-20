@@ -52,7 +52,7 @@ curl -X POST http://localhost:8080/v1/programado \
   -d @docs/exemplos/programado.json
 ```
 
-Campos: `data` (`DD/MM/AAAA` ou `YYYY-MM-DD`), `fase`, `regional` (sigla), `uf`, `inep` (texto ou número), `fornecedor_nome`, `fornecedor_cnpj`, `quantidade` (default 1), `provisoria`. Identidade: **data + INEP**. Última ocorrência vence. Objeto sem INEP, data, fase ou regional é ignorado.
+Campos: `data` (`DD/MM/AAAA` ou `YYYY-MM-DD`), `fase`, `regional` (sigla ou nome: `NO`/`Norte`, `NE-I`/`Nordeste I`, `NE-II`/`Nordeste II`, `SUSE`/`Sudeste/Centro-Sul`, `COSE`/`Centro-Oeste/Minas`), `uf`, `inep` (texto ou número), `fornecedor_nome`, `fornecedor_cnpj`, `quantidade` (default 1), `provisoria`. Identidade: **data + INEP**. Última ocorrência vence. Objeto sem INEP, data, fase ou regional é ignorado.
 
 O mês do espelho é o da data do primeiro item válido. Depois de gravar, some o Programado daquele mês que não veio. Planejado e outros meses não se mexem. Rode de novo [`docs/sql/aplicar_programado.sql`](docs/sql/aplicar_programado.sql) se a RPC antiga (só upsert) já estiver no banco.
 
