@@ -1,36 +1,95 @@
 # PCP Processamento
 
-API Go que recebe a Carga de Planejamento (CSV) e o Programado (JSON do Bubble), enfileira um Job de Aplicação e grava na coleção de Registro PCP no Supabase.
+Serviço em Go que grava o **Planejado** e o **Programado** na tabela `pcp` do Supabase.
 
-## Pré-requisitos
+- **Planejado:** meta de escolas (CSV). Não aponta para uma escola específica.
+- **Programado:** uma escola (INEP) associada a uma OSP válida. Pode ser enviado em JSON pronto, ou **puxado** da Data API do Bubble.
 
-1. Tabela `public.pcp` — rode [`docs/sql/pcp.sql`](docs/sql/pcp.sql).
-2. Tabela `public.pcp_job` — rode [`docs/sql/pcp_job.sql`](docs/sql/pcp_job.sql).
-3. Função de batch do Planejado — rode [`docs/sql/aplicar_carga_planejamento.sql`](docs/sql/aplicar_carga_planejamento.sql).
-4. Função e índice do Programado — rode [`docs/sql/aplicar_programado.sql`](docs/sql/aplicar_programado.sql).
-5. Coluna `tipo` em `pcp_job` — rode [`docs/sql/pcp_job_tipo.sql`](docs/sql/pcp_job_tipo.sql) se a tabela já existia.
-6. CNPJ opcional no Planejado — rode [`docs/sql/pcp_planejado_cnpj_opcional.sql`](docs/sql/pcp_planejado_cnpj_opcional.sql) e de novo [`docs/sql/aplicar_carga_planejamento.sql`](docs/sql/aplicar_carga_planejamento.sql) se o índice antigo já existia.
-7. Origem version-test/live no Programado — rode [`docs/sql/pcp_programado_origem.sql`](docs/sql/pcp_programado_origem.sql) e de novo [`docs/sql/aplicar_programado.sql`](docs/sql/aplicar_programado.sql) se a tabela já existia.
-8. Arquivo `.env` local (copie de `.env.example`):
+Cada envio cria um **Job** em `pcp_job`. A API responde na hora; um worker no mesmo processo aplica a carga no banco.
+
+Contrato HTTP detalhado (status, erros, campos): [`docs/api.md`](docs/api.md).
+
+---
+
+## O que você precisa
+
+- Go (versão do `go.mod`)
+- Um projeto Supabase
+- Arquivo `.env` na raiz (veja abaixo)
+- Token da Data API do Bubble, se for **puxar** Programado
+
+---
+
+## 1. Configurar o `.env`
 
 ```bash
 cp .env.example .env
-# preencha SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, API_KEY
 ```
 
-## Subir o serviço
+| Variável | Obrigatória? | Para quê |
+| --- | --- | --- |
+| `SUPABASE_URL` | sim (API e CLI que grava no banco) | URL do projeto, ex. `https://xxxx.supabase.co` |
+| `SUPABASE_SERVICE_ROLE_KEY` | sim (idem) | chave **service_role** (não a anon) |
+| `API_KEY` | sim para a API HTTP | valor do header `X-API-Key` |
+| `BUBBLE_API_TOKEN` | para puxar `-env test` | token da Data API na **version-test** |
+| `BUBBLE_API_TOKEN_LIVE` | opcional | token da Data API na **live**. Se vazio, `-env live` usa `BUBBLE_API_TOKEN` |
+| `HTTP_ADDR` | não | endereço da API (padrão `:8080`) |
+| `BATCH_SIZE` | não | tamanho do lote do Planejado (padrão `200`) |
+| `BATCH_MAX_RETRIES` | não | tentativas em falha transitória (padrão `3`) |
+
+A chave `API_KEY` é inventada por você. Quem chama a API precisa enviar o mesmo valor.
+
+---
+
+## 2. Preparar o banco (SQL Editor do Supabase)
+
+**Banco novo, ou pode apagar `pcp` e `pcp_job`:** rode [`docs/sql/recriar_pcp.sql`](docs/sql/recriar_pcp.sql) uma vez. Cria as tabelas, índices e as funções `aplicar_carga_planejamento` e `aplicar_programado`.
+
+**Banco que já tem dados** (não rode o `recriar`): execute, nesta ordem, o que ainda faltar:
+
+1. [`docs/sql/pcp.sql`](docs/sql/pcp.sql) e [`docs/sql/pcp_job.sql`](docs/sql/pcp_job.sql)
+2. [`docs/sql/aplicar_carga_planejamento.sql`](docs/sql/aplicar_carga_planejamento.sql)
+3. [`docs/sql/aplicar_programado.sql`](docs/sql/aplicar_programado.sql)
+4. Se a tabela `pcp_job` já existia sem `tipo`: [`docs/sql/pcp_job_tipo.sql`](docs/sql/pcp_job_tipo.sql)
+5. Se o Planejado ainda exige CNPJ: [`docs/sql/pcp_planejado_cnpj_opcional.sql`](docs/sql/pcp_planejado_cnpj_opcional.sql) e de novo o passo 2
+6. Se `pcp` ainda não tem `origem`: [`docs/sql/pcp_programado_origem.sql`](docs/sql/pcp_programado_origem.sql) e de novo o passo 3
+7. Esconder version-test: [`docs/sql/pcp_rls_esconder_version_test.sql`](docs/sql/pcp_rls_esconder_version_test.sql)
+
+Sem a RPC `aplicar_programado` atualizada, o puxar grava o Job mas a coluna `origem` não entra no banco.
+
+---
+
+## 3. Subir a API
+
+Na raiz do repositório:
 
 ```bash
 go run ./cmd/pcp-processamento
 ```
 
-Sobe HTTP + worker no mesmo processo (padrão `:8080`).
+Sobe HTTP + worker no mesmo processo, em `http://localhost:8080`.
 
-Contrato HTTP para o Bubble: [`docs/api.md`](docs/api.md). Curls de teste no topo desse arquivo.
+Teste se está no ar (não pede chave):
 
-## Enviar uma Carga de Planejamento
+```bash
+curl -sS http://localhost:8080/
+```
 
-Modelo: [`docs/exemplos/carga_planejamento.csv`](docs/exemplos/carga_planejamento.csv). Copie e ajuste.
+Esperado: `{"status":"ok"}`.
+
+Carregue as variáveis do `.env` no terminal antes dos curls:
+
+```bash
+set -a && source .env && set +a
+```
+
+Se `BUBBLE_API_TOKEN` estiver preenchido, a API também aceita `POST /v1/programado/puxar` (hoje só **version-test**; live pelo CLI, seção 6).
+
+---
+
+## 4. Enviar a Carga de Planejamento (CSV)
+
+Modelo: [`docs/exemplos/carga_planejamento.csv`](docs/exemplos/carga_planejamento.csv).
 
 ```bash
 curl -X POST http://localhost:8080/v1/planejamento \
@@ -38,13 +97,36 @@ curl -X POST http://localhost:8080/v1/planejamento \
   -F "file=@docs/exemplos/carga_planejamento.csv"
 ```
 
-Resposta: `{"id":"<uuid>","tipo":"planejado"}` do Job de Aplicação. Acompanhe o progresso em `pcp_job`. O Planejado fica em `pcp` (`tipo = planejado`).
+Resposta `201`: `{"id":"<uuid>","tipo":"planejado"}`. Acompanhe o Job em `pcp_job` (seção 7).
 
-CSV (`,` ou `;`): `data,fase,regional,fornecedor,cnpj,quantidade`. Data em `DD/MM/AAAA`. Quantidade inteira. `cnpj` é opcional (como veio, máscara inclusa). Sem CNPJ, a chave usa o nome em `fornecedor`. Regional é a sigla (`NO`, `NE-I`, `NE-II`, `SUSE`, `COSE`); o serviço preenche `regional_nome`.
+Colunas do CSV (`,` ou `;`): `data`, `fase`, `regional`, `fornecedor`, `cnpj`, `quantidade`.
 
-## Enviar Programado (JSON do Bubble)
+| Campo | Obrigatório | Formato |
+| --- | --- | --- |
+| `data` | sim | `DD/MM/AAAA` |
+| `fase` | sim | texto |
+| `regional` | sim | sigla: `NO`, `NE-I`, `NE-II`, `SUSE`, `COSE` |
+| `cnpj` | não | como veio (máscara ok) |
+| `fornecedor` | se não houver CNPJ | nome; identifica a linha |
+| `quantidade` | sim | inteiro ≥ 0 |
 
-Modelo: [`docs/exemplos/programado.json`](docs/exemplos/programado.json). Array de objetos, ou `{"itens":[...]}`. Cerca de 3.000 itens cabem numa requisição (limite 16 MB). A API enfileira um Job e responde na hora; o worker grava em batches.
+O serviço preenche `regional_nome` (`NO` → Norte, `NE-I` → Nordeste I, etc.).
+
+**Chave do Planejado:** data + fase + regional + CNPJ. Sem CNPJ, usa o nome do fornecedor. Última linha com a mesma chave vence.
+
+- Reenviar a mesma chave **atualiza** (10 vira 9; 10 vira 0).
+- Chave **nova** com quantidade `0` **não** grava.
+- Chave que **não veio** neste CSV **permanece** (não é espelho: não apaga o que faltou).
+- Sem nenhuma linha válida: `400`, Job não é criado.
+- No Planejado, `inep`, `uf`, `provisoria` e `origem` ficam vazios.
+
+---
+
+## 5. Enviar Programado já montado (JSON)
+
+Use quando o Bubble (ou você) já tem o array. Modelo: [`docs/exemplos/programado.json`](docs/exemplos/programado.json).
+
+Array de objetos, ou `{"itens":[...]}`. Limite 16 MB (~3.000 itens).
 
 ```bash
 curl -X POST http://localhost:8080/v1/programado \
@@ -53,39 +135,167 @@ curl -X POST http://localhost:8080/v1/programado \
   -d @docs/exemplos/programado.json
 ```
 
-Campos: `data` (`DD/MM/AAAA` ou `YYYY-MM-DD`), `fase`, `regional` (sigla ou nome: `NO`/`Norte`, `NE-I`/`Nordeste I`, `NE-II`/`Nordeste II`, `SUSE`/`Sudeste/Centro-Sul`, `COSE`/`Centro-Oeste/Minas`), `uf`, `inep` (texto ou número), `fornecedor_nome`, `fornecedor_cnpj`, `quantidade` (default 1), `provisoria`. Identidade: **data + INEP**. Última ocorrência vence. Objeto sem INEP, data, fase ou regional é ignorado.
+| Campo | Obrigatório | Formato |
+| --- | --- | --- |
+| `data` | sim | `DD/MM/AAAA` ou `YYYY-MM-DD` |
+| `fase` | sim | texto |
+| `regional` | sim | sigla ou nome (`NO` / `Norte`, `NE-I` / `Nordeste I`, `NE-II` / `Nordeste II`, `SUSE` / `Sudeste/Centro-Sul`, `COSE` / `Centro-Oeste/Minas`) |
+| `inep` | sim | texto ou número |
+| `uf` | não | texto |
+| `fornecedor_nome` | não | texto |
+| `fornecedor_cnpj` | não | como veio |
+| `quantidade` | não | inteiro ≥ 0; omitido = `1` |
+| `provisoria` | não | `true` / `false` |
+| `origem` | não | `version-test` ou `live` (o puxar preenche sozinho) |
 
-O mês do espelho é o da data do primeiro item válido. Depois de gravar, some o Programado daquele mês que não veio. Planejado e outros meses não se mexem. Rode de novo [`docs/sql/aplicar_programado.sql`](docs/sql/aplicar_programado.sql) se a RPC antiga (só upsert) já estiver no banco.
+Nome vira sigla na gravação (`Norte` → `regional = NO`).
 
-## Puxar Programado do Bubble e gravar no PCP
+**Chave do Programado:** data + INEP. Última ocorrência no JSON vence.
 
-Com `-env test` (padrão) ou `-env live`. A coluna `origem` em `pcp` fica `version-test` ou `live`. Live usa `BUBBLE_API_TOKEN_LIVE` se existir; senão o mesmo token.
+**Espelho do mês:** o mês é o da data do **primeiro item válido**. Depois de gravar, some o Programado **daquele mês** cuja chave não veio. Planejado e Programado de outros meses não se mexem. Itens de outro mês no mesmo JSON são ignorados.
+
+JSON vazio ou sem itens válidos: `400` e **não apaga** o mês.
+
+---
+
+## 6. Puxar Programado do Bubble (o caminho usual)
+
+O comando lê a Data API, monta o JSON no formato da seção 5, grava `programado.json` na pasta atual e **aplica no Supabase** (mesmo Job / RPC do POST).
+
+### Escolher test ou live
+
+| Flag | URL da Data API | `origem` gravada em `pcp` | Token |
+| --- | --- | --- | --- |
+| `-env test` (padrão) | `https://eace.org.br/version-test/api/1.1` | `version-test` | `BUBBLE_API_TOKEN` |
+| `-env live` | `https://eace.org.br/api/1.1` | `live` | `BUBBLE_API_TOKEN_LIVE`, ou `BUBBLE_API_TOKEN` se o live estiver vazio |
+
+A chave do Programado continua **data + INEP** (não duplica a mesma escola no mês por ser test vs live). A coluna `origem` só marca de onde veio.
 
 ```bash
+# version-test, mês de agosto de 2026
 go run ./cmd/puxar-programado -mes 2026-08 -env test
+
+# app live
 go run ./cmd/puxar-programado -mes 2026-08 -env live
 ```
 
-Gera `programado.json` e grava no Supabase. Só o arquivo, sem banco: `-somente-json`.
+Sem `-mes`, usa o mês atual em `America/Sao_Paulo`.
 
-Com o serviço no ar (`BUBBLE_API_TOKEN` preenchido):
+### Outras flags
+
+| Flag | Padrão | Efeito |
+| --- | --- | --- |
+| `-mes YYYY-MM` | mês atual | recorte pela **previsão de entrega da OSP** |
+| `-env test\|live` | `test` | qual app Bubble |
+| `-o arquivo.json` | `programado.json` | onde salvar o JSON |
+| `-somente-json` | desligado | só gera o arquivo; **não** cria Job nem grava `pcp` |
+
+Exemplo só para inspecionar o que seria gravado:
+
+```bash
+go run ./cmd/puxar-programado -mes 2026-08 -env test -somente-json -o /tmp/agosto.json
+```
+
+Se não houver nenhuma folha válida, o comando **não** cria Job e **não** apaga o mês.
+
+### O que entra (e o que é skip)
+
+Percorre OSPs do mês com status ≠ `Reprovado`. Em cada Folha de Registro:
+
+1. Contrato de instalação com descrição contendo `kit` e tipo de obra `4-IMPLANTAÇÃO_DE_REDE_INTERNA`
+2. Escola com fase e regional
+3. Quantidade **1 por folha**
+4. **Data do Programado:** se a escola está `Conectada` e `importação_escola.data_relatorio` está preenchida, usa essa data; senão usa a previsão de entrega da OSP
+5. **Provisória:** `true` se `OSnum` da OSP está vazio ou `0`
+6. Fase, regional, UF, INEP e fornecedor RI vêm da **escola**
+
+MIP não entra. Folhas que não passam nas regras aparecem no log como `skip` (sem INEP, sem kit RI, escola sem fase, etc.) e não vão para o JSON.
+
+Se a live ainda não expuser `/obj/osp`, `-env live` falha com o erro HTTP do Bubble — isso é configuração da Data API no app, não do CLI.
+
+### Puxar pela API HTTP
+
+Com `go run ./cmd/pcp-processamento` no ar e `BUBBLE_API_TOKEN` no `.env` (version-test):
 
 ```bash
 curl -X POST "http://localhost:8080/v1/programado/puxar?mes=2026-08" \
   -H "X-API-Key: $API_KEY"
 ```
 
-Resposta: `{"id":"<uuid>","tipo":"programado","itens":N,"skips":N}`. O worker aplica em seguida.
+Resposta `201`: `{"id":"<uuid>","tipo":"programado","itens":N,"skips":N}`. O worker aplica em seguida.
 
-## Testes automatizados
+Para **live**, use o CLI com `-env live`.
+
+---
+
+## 7. Saber se deu certo
+
+Não há GET de progresso nesta API. Olhe a tabela `pcp_job` no Supabase (Table Editor ou API Connector do Bubble), pelo `id` devolvido no `201`.
+
+| `status` | Significado |
+| --- | --- |
+| `queued` | na fila |
+| `running` | o worker está gravando |
+| `success` | carga aplicada |
+| `failed` | motivo em `error_message` |
+
+Um Job por vez, na ordem de chegada. Dá para enfileirar outro envio enquanto um corre.
+
+Confira o resultado em `pcp`:
+
+- Planejado: `tipo = planejado`
+- Programado: `tipo = programado` (e `origem` se veio do puxar)
+
+Se o Programado falhar no meio, o mês pode ficar inconsistente — rode de novo o puxar (ou o POST do JSON) daquele mês.
+
+---
+
+## 8. Regionais
+
+| Sigla | Nome |
+| --- | --- |
+| `NO` | Norte |
+| `NE-I` | Nordeste I |
+| `NE-II` | Nordeste II |
+| `SUSE` | Sudeste/Centro-Sul |
+| `COSE` | Centro-Oeste/Minas |
+
+No Planejado a regional no CSV é a **sigla**. No Programado aceita sigla ou nome.
+
+---
+
+## 9. Esconder Programado da version-test
+
+Linhas com `origem = version-test` não devem aparecer no Bubble, no Table Editor (chave **anon** / **authenticated**) nem em funções SQL que leem dados.
+
+Rode [`docs/sql/pcp_rls_esconder_version_test.sql`](docs/sql/pcp_rls_esconder_version_test.sql). Isso liga RLS na tabela `pcp` e cria a view **`pcp_visivel`** (sem version-test).
+
+No Bubble e em qualquer função que **devolva** registros, aponte para `pcp_visivel`, não para `pcp`. O filtro da view vale inclusive para `service_role` e para o SQL Editor.
+
+A API Go / CLI (`-env test`) continua gravando em `pcp` com a chave **service_role**. As RPCs `aplicar_carga_planejamento` e `aplicar_programado` não devolvem linha; elas precisam enxergar a tabela inteira por causa da chave única (data + INEP).
+
+Não use a `service_role` no API Connector do Bubble para **ler** `pcp`: essa chave ignora RLS e mostraria version-test.
+
+---
+
+## 10. Testes automatizados
+
+Não precisam do Supabase nem do Bubble reais:
 
 ```bash
 go test ./...
 ```
 
-Usam stores em memória e um PostgREST falso — não precisam do Supabase real.
+---
 
-## Colunas tocadas no Supabase
+## Onde está cada coisa
 
-- `pcp_job`: `status`, `tipo` (`planejado` ou `programado`), `total`, `processadas`, `file_name`, `error_message` (e `id` gerado pelo banco)
-- `pcp`: Planejado via RPC `aplicar_carga_planejamento`; Programado via RPC `aplicar_programado` (espelho do mês: grava a carga e remove omitidos daquele mês)
+| Assunto | Arquivo |
+| --- | --- |
+| Contrato HTTP, curls e erros | [`docs/api.md`](docs/api.md) |
+| CSV de exemplo | [`docs/exemplos/carga_planejamento.csv`](docs/exemplos/carga_planejamento.csv) |
+| JSON de exemplo | [`docs/exemplos/programado.json`](docs/exemplos/programado.json) |
+| Recriar banco do zero | [`docs/sql/recriar_pcp.sql`](docs/sql/recriar_pcp.sql) |
+| Coluna `origem` (banco antigo) | [`docs/sql/pcp_programado_origem.sql`](docs/sql/pcp_programado_origem.sql) |
+| Esconder version-test (RLS + view) | [`docs/sql/pcp_rls_esconder_version_test.sql`](docs/sql/pcp_rls_esconder_version_test.sql) |
+| Variáveis de ambiente | [`.env.example`](.env.example) |
