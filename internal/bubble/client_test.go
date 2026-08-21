@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/wellington/pcp_processamento/internal/bubble"
@@ -102,5 +103,12 @@ func TestAmbienteEOrigem(t *testing.T) {
 	}
 	if _, err := bubble.Ambiente("staging"); err == nil {
 		t.Fatal("staging")
+	}
+}
+
+func TestConstraintsIDsUsaIn(t *testing.T) {
+	raw := bubble.ConstraintsIDs([]string{"a", "b"})
+	if !strings.Contains(raw, `"constraint_type":"in"`) || !strings.Contains(raw, `"a"`) {
+		t.Fatalf("%s", raw)
 	}
 }

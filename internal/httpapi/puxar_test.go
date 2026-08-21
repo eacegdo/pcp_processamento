@@ -118,6 +118,14 @@ func fakeBubblePuxar(t *testing.T) *httptest.Server {
 			    "FR":["fr1"]
 			  }]}
 			}`)
+		case r.URL.Path == "/obj/fr_osp":
+			_, _ = io.WriteString(w, `{
+			  "response": {"cursor":0,"remaining":0,"results":[{
+			    "_id":"fr1","INEP":"15026868","UF":"PA",
+			    "Escola":"esc1","OSP":"osp1",
+			    "lista de contratos_instalação":["c1"]
+			  }]}
+			}`)
 		case r.URL.Path == "/obj/fr_osp/fr1":
 			_, _ = io.WriteString(w, `{
 			  "response": {
@@ -126,11 +134,29 @@ func fakeBubblePuxar(t *testing.T) *httptest.Server {
 			    "lista de contratos_instalação":["c1"]
 			  }
 			}`)
+		case r.URL.Path == "/obj/contrato_taxa_instalacao":
+			_, _ = io.WriteString(w, `{
+			  "response": {"cursor":0,"remaining":0,"results":[{
+			    "_id":"c1","Descrição":"Kit Cobertura Wi-Fi",
+			    "Tipo de obra":"4-IMPLANTAÇÃO_DE_REDE_INTERNA"
+			  }]}
+			}`)
 		case strings.HasSuffix(r.URL.Path, "/contrato_taxa_instalacao/c1"):
 			_, _ = io.WriteString(w, `{
 			  "response": {
 			    "_id":"c1","Descrição":"Kit Cobertura Wi-Fi",
 			    "Tipo de obra":"4-IMPLANTAÇÃO_DE_REDE_INTERNA"
+			  }
+			}`)
+		case r.URL.Path == "/obj/escolas":
+			_, _ = io.WriteString(w, `{
+			  "response": {
+			    "cursor":0,"remaining":0,"results":[{
+			    "_id":"esc1","INEP":"15026868","UF":"PA","FASE":"3",
+			    "Regional":"Norte","Status Geral":"Em planejamento",
+			    "fornecedor_ri":"Q13 TECNOLOGIA",
+			    "cnpj_fornecedor_ri":"30.161.238/0001-60"
+			  }]
 			  }
 			}`)
 		case r.URL.Path == "/obj/escolas/esc1":

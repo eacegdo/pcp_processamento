@@ -34,7 +34,15 @@ type Client struct {
 
 func NewClient(baseURL, token string, httpClient *http.Client) *Client {
 	if httpClient == nil {
-		httpClient = &http.Client{Timeout: 30 * time.Second}
+		httpClient = &http.Client{
+			Timeout: 45 * time.Second,
+			Transport: &http.Transport{
+				Proxy:               http.ProxyFromEnvironment,
+				MaxIdleConns:        64,
+				MaxIdleConnsPerHost: 16,
+				IdleConnTimeout:     90 * time.Second,
+			},
+		}
 	}
 	return &Client{
 		BaseURL:    strings.TrimRight(strings.TrimSpace(baseURL), "/"),
@@ -145,13 +153,41 @@ func (c *Client) ListConstrained(typeName string, limit, cursor int, constraints
 }
 
 func (c *Client) ListFolhasOSP(limit, cursor int) ([]FolhaOSP, Page, error) {
-	page, err := c.List(TypeFolhaOSP, limit, cursor)
+	return c.ListFolhasOSPConstrained(limit, cursor, "")
+}
+
+func (c *Client) ListFolhasOSPConstrained(limit, cursor int, constraintsJSON string) ([]FolhaOSP, Page, error) {
+	page, err := c.ListConstrained(TypeFolhaOSP, limit, cursor, constraintsJSON)
 	if err != nil {
 		return nil, Page{}, err
 	}
 	var rows []FolhaOSP
 	if err := json.Unmarshal(page.Results, &rows); err != nil {
 		return nil, page, fmt.Errorf("decode fr_osp: %w", err)
+	}
+	return rows, page, nil
+}
+
+func (c *Client) ListEscolas(limit, cursor int, constraintsJSON string) ([]Escola, Page, error) {
+	page, err := c.ListConstrained(TypeEscolas, limit, cursor, constraintsJSON)
+	if err != nil {
+		return nil, Page{}, err
+	}
+	var rows []Escola
+	if err := json.Unmarshal(page.Results, &rows); err != nil {
+		return nil, page, fmt.Errorf("decode escolas: %w", err)
+	}
+	return rows, page, nil
+}
+
+func (c *Client) ListContratos(limit, cursor int, constraintsJSON string) ([]ContratoInstalacao, Page, error) {
+	page, err := c.ListConstrained(TypeContrato, limit, cursor, constraintsJSON)
+	if err != nil {
+		return nil, Page{}, err
+	}
+	var rows []ContratoInstalacao
+	if err := json.Unmarshal(page.Results, &rows); err != nil {
+		return nil, page, fmt.Errorf("decode contrato: %w", err)
 	}
 	return rows, page, nil
 }
@@ -183,6 +219,20 @@ func (c *Client) ListImportacoesEscola(limit, cursor int, constraintsJSON string
 func ConstraintsINEP(inep string) string {
 	b, _ := json.Marshal([]map[string]string{
 		{"key": "inep", "constraint_type": "equals", "value": strings.TrimSpace(inep)},
+	})
+	return string(b)
+}
+
+func ConstraintsIDs(ids []string) string {
+	b, _ := json.Marshal([]map[string]any{
+		{"key": "_id", "constraint_type": "in", "value": ids},
+	})
+	return string(b)
+}
+
+func ConstraintsINEPs(ineps []string) string {
+	b, _ := json.Marshal([]map[string]any{
+		{"key": "inep", "constraint_type": "in", "value": ineps},
 	})
 	return string(b)
 }
