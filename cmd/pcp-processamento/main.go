@@ -3,9 +3,11 @@ package main
 import (
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/joho/godotenv"
+	"github.com/wellington/pcp_processamento/internal/bubble"
 	"github.com/wellington/pcp_processamento/internal/config"
 	"github.com/wellington/pcp_processamento/internal/httpapi"
 	"github.com/wellington/pcp_processamento/internal/supabase"
@@ -27,6 +29,18 @@ func main() {
 		MaxRetries: cfg.BatchMaxRetries,
 	})
 	srv := httpapi.NewServer(cfg.APIKey, jobs)
+	if token := strings.TrimSpace(cfg.BubbleAPIToken); token != "" {
+		base := strings.TrimSpace(cfg.BubbleBaseURL)
+		if base == "" {
+			base = bubble.BaseURLVersionTest
+		}
+		if err := bubble.RecusaLive(base); err != nil {
+			log.Printf("puxar desligado: %v", err)
+		} else {
+			srv.WithBubble(bubble.NewClient(base, token, nil))
+			log.Printf("puxar Programado em POST /v1/programado/puxar (%s)", base)
+		}
+	}
 
 	go runWorker(w)
 

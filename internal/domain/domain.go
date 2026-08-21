@@ -5,6 +5,9 @@ import "time"
 const TipoPlanejado = "planejado"
 const TipoProgramado = "programado"
 
+const OrigemVersionTest = "version-test"
+const OrigemLive = "live"
+
 // RegistroPCP is one line in the PCP collection.
 type RegistroPCP struct {
 	Tipo           string
@@ -18,6 +21,7 @@ type RegistroPCP struct {
 	FornecedorCNPJ string
 	Quantidade     int
 	Provisoria     *bool
+	Origem         string
 }
 
 // ItemCarga is one line to apply: Planejado (Carga de Planejamento) or Programado (JSON do Bubble).
@@ -33,6 +37,7 @@ type ItemCarga struct {
 	FornecedorCNPJ string
 	Quantidade     int
 	Provisoria     *bool
+	Origem         string
 }
 
 // Job is an Aplicação da Carga execution with observable progress.

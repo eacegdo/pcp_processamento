@@ -105,6 +105,7 @@ func TestEncodeProgramadoJSONFormatoPCP(t *testing.T) {
 		INEP:       "15026868",
 		Quantidade: 1,
 		Provisoria: &prov,
+		Origem:     domain.OrigemVersionTest,
 	}})
 	if err != nil {
 		t.Fatal(err)
@@ -121,5 +122,8 @@ func TestEncodeProgramadoJSONFormatoPCP(t *testing.T) {
 	}
 	if rows[0]["provisoria"] != true {
 		t.Fatalf("provisoria = %v", rows[0]["provisoria"])
+	}
+	if rows[0]["origem"] != "version-test" {
+		t.Fatalf("origem = %v", rows[0]["origem"])
 	}
 }

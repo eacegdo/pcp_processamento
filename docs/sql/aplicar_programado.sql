@@ -39,7 +39,8 @@ begin
       fornecedor_nome text,
       fornecedor_cnpj text,
       quantidade integer,
-      provisoria boolean
+      provisoria boolean,
+      origem text
     )
   loop
     if r.inep is null or btrim(r.inep) = '' or r.quantidade < 0 then
@@ -59,7 +60,8 @@ begin
       fornecedor_nome = r.fornecedor_nome,
       fornecedor_cnpj = coalesce(r.fornecedor_cnpj, ''),
       quantidade = r.quantidade,
-      provisoria = r.provisoria
+      provisoria = r.provisoria,
+      origem = r.origem
     where p.tipo = 'programado'
       and p.data = r.data
       and p.inep = r.inep;
@@ -80,7 +82,8 @@ begin
         fornecedor_nome,
         fornecedor_cnpj,
         quantidade,
-        provisoria
+        provisoria,
+        origem
       ) values (
         'programado',
         r.data,
@@ -92,7 +95,8 @@ begin
         r.fornecedor_nome,
         coalesce(r.fornecedor_cnpj, ''),
         r.quantidade,
-        r.provisoria
+        r.provisoria,
+        r.origem
       );
     end if;
   end loop;

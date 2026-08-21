@@ -36,6 +36,13 @@ curl -sS -X POST http://localhost:8080/v1/programado \
   -d @docs/exemplos/programado.json
 ```
 
+**Puxar Programado** (Data API version-test → Job) — espera `201` e `"tipo":"programado"`:
+
+```bash
+curl -sS -X POST "http://localhost:8080/v1/programado/puxar?mes=2026-08" \
+  -H "X-API-Key: $API_KEY"
+```
+
 **Programado** (um objeto inline):
 
 ```bash
@@ -218,6 +225,7 @@ Array de objetos, ou `{"itens":[...]}`. Modelo: [`docs/exemplos/programado.json`
 | `fornecedor_cnpj` | não | como veio; vazio vira `""` |
 | `quantidade` | não | inteiro ≥ 0; omitido = `1` |
 | `provisoria` | não | boolean |
+| `origem` | não | `version-test` ou `live`; o puxar preenche sozinho. Vazio no Planejado e no JSON antigo |
 
 Nome vira sigla na gravação (`Norte` → `regional = NO`, `regional_nome = Norte`). Sigla fora da lista grava como veio e deixa o nome vazio.
 

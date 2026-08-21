@@ -31,6 +31,7 @@ type jsonItem struct {
 	FornecedorCNPJ string `json:"fornecedor_cnpj"`
 	Quantidade     int    `json:"quantidade"`
 	Provisoria     bool   `json:"provisoria"`
+	Origem         string `json:"origem,omitempty"`
 }
 
 // EncodeProgramadoJSON is the payload of POST /v1/programado.
@@ -51,6 +52,7 @@ func EncodeProgramadoJSON(items []domain.ItemCarga) ([]byte, error) {
 			FornecedorCNPJ: item.FornecedorCNPJ,
 			Quantidade:     item.Quantidade,
 			Provisoria:     prov,
+			Origem:         item.Origem,
 		})
 	}
 	return json.MarshalIndent(rows, "", "  ")
@@ -120,6 +122,7 @@ func (c *Client) PuxarMes(mes time.Time) (Puxado, error) {
 				out.Skips = append(out.Skips, PuxarSkip{OSPID: osp.ID, FolhaID: folha.ID, INEP: inep, Motivo: skip})
 				continue
 			}
+			item.Origem = OrigemDaBase(c.BaseURL)
 			out.Itens = append(out.Itens, item)
 		}
 	}

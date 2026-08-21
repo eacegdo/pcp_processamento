@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/wellington/pcp_processamento/internal/bubble"
 	"github.com/wellington/pcp_processamento/internal/domain"
 	"github.com/wellington/pcp_processamento/internal/lote"
 	"github.com/wellington/pcp_processamento/internal/programado"
@@ -14,6 +15,7 @@ import (
 type Server struct {
 	apiKey string
 	jobs   domain.JobStore
+	bubble *bubble.Client
 	mux    *http.ServeMux
 }
 
@@ -22,6 +24,12 @@ func NewServer(apiKey string, jobs domain.JobStore) *Server {
 	s.mux.HandleFunc("GET /", s.handleHealth)
 	s.mux.HandleFunc("POST /v1/planejamento", s.handleIngestCarga)
 	s.mux.HandleFunc("POST /v1/programado", s.handleIngestProgramado)
+	s.mux.HandleFunc("POST /v1/programado/puxar", s.handlePuxarProgramado)
+	return s
+}
+
+func (s *Server) WithBubble(c *bubble.Client) *Server {
+	s.bubble = c
 	return s
 }
 
@@ -103,4 +111,54 @@ func (s *Server) handleIngestProgramado(rw http.ResponseWriter, req *http.Reques
 	rw.Header().Set("Content-Type", "application/json")
 	rw.WriteHeader(http.StatusCreated)
 	_ = json.NewEncoder(rw).Encode(map[string]string{"id": job.ID, "tipo": job.Tipo})
+}
+
+func (s *Server) handlePuxarProgramado(rw http.ResponseWriter, req *http.Request) {
+	if req.Header.Get("X-API-Key") != s.apiKey {
+		http.Error(rw, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+	if s.bubble == nil {
+		http.Error(rw, `{"error":"bubble não configurado"}`, http.StatusServiceUnavailable)
+		return
+	}
+
+	mes, err := bubble.MesCivil(req.URL.Query().Get("mes"))
+	if err != nil {
+		http.Error(rw, `{"error":"mês inválido"}`, http.StatusBadRequest)
+		return
+	}
+
+	got, err := s.bubble.PuxarMes(mes)
+	if err != nil {
+		http.Error(rw, `{"error":"falha ao puxar bubble"}`, http.StatusBadGateway)
+		return
+	}
+
+	raw, err := bubble.EncodeProgramadoJSON(got.Itens)
+	if err != nil {
+		http.Error(rw, `{"error":"json inválido"}`, http.StatusInternalServerError)
+		return
+	}
+	items, err := programado.ParseJSON(bytes.NewReader(raw))
+	if err != nil {
+		http.Error(rw, `{"error":"nenhum programado no mês"}`, http.StatusBadRequest)
+		return
+	}
+
+	fileName := "puxar-" + mes.Format("2006-01") + ".json"
+	job, err := s.jobs.Create(len(items), domain.TipoProgramado, fileName, items)
+	if err != nil {
+		http.Error(rw, `{"error":"falha ao criar job"}`, http.StatusInternalServerError)
+		return
+	}
+
+	rw.Header().Set("Content-Type", "application/json")
+	rw.WriteHeader(http.StatusCreated)
+	_ = json.NewEncoder(rw).Encode(map[string]any{
+		"id":    job.ID,
+		"tipo":  job.Tipo,
+		"itens": len(items),
+		"skips": len(got.Skips),
+	})
 }

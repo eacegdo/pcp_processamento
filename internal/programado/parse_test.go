@@ -92,6 +92,17 @@ func TestParseJSONDescartaItemDeOutroMes(t *testing.T) {
 	}
 }
 
+func TestParseJSONPreservaOrigem(t *testing.T) {
+	raw := `[{"data":"18/08/2026","fase":"4.2","regional":"NO","inep":"1","origem":"version-test"}]`
+	got, err := programado.ParseJSON(strings.NewReader(raw))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got[0].Origem != domain.OrigemVersionTest {
+		t.Fatalf("origem = %q", got[0].Origem)
+	}
+}
+
 func TestParseJSONVazioOuSemValidos(t *testing.T) {
 	if _, err := programado.ParseJSON(strings.NewReader(`{}`)); err == nil {
 		t.Fatal("expected error for empty envelope")

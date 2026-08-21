@@ -10,7 +10,8 @@ API Go que recebe a Carga de Planejamento (CSV) e o Programado (JSON do Bubble),
 4. Função e índice do Programado — rode [`docs/sql/aplicar_programado.sql`](docs/sql/aplicar_programado.sql).
 5. Coluna `tipo` em `pcp_job` — rode [`docs/sql/pcp_job_tipo.sql`](docs/sql/pcp_job_tipo.sql) se a tabela já existia.
 6. CNPJ opcional no Planejado — rode [`docs/sql/pcp_planejado_cnpj_opcional.sql`](docs/sql/pcp_planejado_cnpj_opcional.sql) e de novo [`docs/sql/aplicar_carga_planejamento.sql`](docs/sql/aplicar_carga_planejamento.sql) se o índice antigo já existia.
-7. Arquivo `.env` local (copie de `.env.example`):
+7. Origem version-test/live no Programado — rode [`docs/sql/pcp_programado_origem.sql`](docs/sql/pcp_programado_origem.sql) e de novo [`docs/sql/aplicar_programado.sql`](docs/sql/aplicar_programado.sql) se a tabela já existia.
+8. Arquivo `.env` local (copie de `.env.example`):
 
 ```bash
 cp .env.example .env
@@ -55,6 +56,26 @@ curl -X POST http://localhost:8080/v1/programado \
 Campos: `data` (`DD/MM/AAAA` ou `YYYY-MM-DD`), `fase`, `regional` (sigla ou nome: `NO`/`Norte`, `NE-I`/`Nordeste I`, `NE-II`/`Nordeste II`, `SUSE`/`Sudeste/Centro-Sul`, `COSE`/`Centro-Oeste/Minas`), `uf`, `inep` (texto ou número), `fornecedor_nome`, `fornecedor_cnpj`, `quantidade` (default 1), `provisoria`. Identidade: **data + INEP**. Última ocorrência vence. Objeto sem INEP, data, fase ou regional é ignorado.
 
 O mês do espelho é o da data do primeiro item válido. Depois de gravar, some o Programado daquele mês que não veio. Planejado e outros meses não se mexem. Rode de novo [`docs/sql/aplicar_programado.sql`](docs/sql/aplicar_programado.sql) se a RPC antiga (só upsert) já estiver no banco.
+
+## Puxar Programado do Bubble e gravar no PCP
+
+Com `-env test` (padrão) ou `-env live`. A coluna `origem` em `pcp` fica `version-test` ou `live`. Live usa `BUBBLE_API_TOKEN_LIVE` se existir; senão o mesmo token.
+
+```bash
+go run ./cmd/puxar-programado -mes 2026-08 -env test
+go run ./cmd/puxar-programado -mes 2026-08 -env live
+```
+
+Gera `programado.json` e grava no Supabase. Só o arquivo, sem banco: `-somente-json`.
+
+Com o serviço no ar (`BUBBLE_API_TOKEN` preenchido):
+
+```bash
+curl -X POST "http://localhost:8080/v1/programado/puxar?mes=2026-08" \
+  -H "X-API-Key: $API_KEY"
+```
+
+Resposta: `{"id":"<uuid>","tipo":"programado","itens":N,"skips":N}`. O worker aplica em seguida.
 
 ## Testes automatizados
 

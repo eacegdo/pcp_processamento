@@ -30,6 +30,7 @@ type rawItem struct {
 	FornecedorCNPJ string          `json:"fornecedor_cnpj"`
 	Quantidade     *int            `json:"quantidade"`
 	Provisoria     *bool           `json:"provisoria"`
+	Origem         string          `json:"origem"`
 }
 
 // ParseJSON reads a JSON array of Programado objects, or {"itens":[...]}.
@@ -121,6 +122,7 @@ func toItem(r rawItem) (domain.ItemCarga, bool) {
 		FornecedorCNPJ: strings.TrimSpace(r.FornecedorCNPJ),
 		Quantidade:     qtd,
 		Provisoria:     r.Provisoria,
+		Origem:         strings.TrimSpace(r.Origem),
 	}, true
 }
 

@@ -26,6 +26,7 @@ create table public.pcp (
   fornecedor_cnpj text not null,
   quantidade integer not null check (quantidade >= 0),
   provisoria boolean null,
+  origem text null check (origem is null or origem in ('version-test', 'live')),
   created_at timestamp with time zone not null default now(),
   updated_at timestamp with time zone not null default now()
 );

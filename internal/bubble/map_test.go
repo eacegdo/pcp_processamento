@@ -192,6 +192,19 @@ func TestOSPNoMes(t *testing.T) {
 	}
 }
 
+func TestMesCivil(t *testing.T) {
+	got, err := bubble.MesCivil("2026-08")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Year() != 2026 || got.Month() != 8 || got.Day() != 1 {
+		t.Fatalf("%v", got)
+	}
+	if _, err := bubble.MesCivil("agosto"); err == nil {
+		t.Fatal("expected error")
+	}
+}
+
 func TestDecodeOSPRegionalAceitaListaOuTexto(t *testing.T) {
 	var lista bubble.OSP
 	if err := json.Unmarshal([]byte(`{"Regional":["Norte","Sudeste/Centro-Sul"]}`), &lista); err != nil {

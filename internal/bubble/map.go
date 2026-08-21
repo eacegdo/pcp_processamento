@@ -2,6 +2,7 @@ package bubble
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"time"
 
@@ -128,6 +129,24 @@ func OSPNoMes(osp OSP, mes time.Time) bool {
 		return false
 	}
 	return d.Year() == mes.Year() && d.Month() == mes.Month()
+}
+
+// MesCivil parses YYYY-MM, or the current month in America/Sao_Paulo when s is empty.
+func MesCivil(s string) (time.Time, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		loc, err := time.LoadLocation("America/Sao_Paulo")
+		if err != nil {
+			loc = time.UTC
+		}
+		now := time.Now().In(loc)
+		return time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC), nil
+	}
+	t, err := time.Parse("2006-01", s)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("mês inválido %q (use YYYY-MM)", s)
+	}
+	return t, nil
 }
 
 // ConstraintsOSPMes is the Data API constraint JSON: previsão no mês e status ≠ Reprovado.

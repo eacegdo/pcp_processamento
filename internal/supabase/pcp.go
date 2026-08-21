@@ -27,6 +27,7 @@ type rpcItem struct {
 	FornecedorCNPJ string `json:"fornecedor_cnpj"`
 	Quantidade     int    `json:"quantidade"`
 	Provisoria     *bool  `json:"provisoria,omitempty"`
+	Origem         string `json:"origem,omitempty"`
 }
 
 // ApplyBatch applies the whole batch in one RPC call.
@@ -52,6 +53,7 @@ func (s *PcpStore) ApplyBatch(items []domain.ItemCarga) error {
 			FornecedorCNPJ: item.FornecedorCNPJ,
 			Quantidade:     item.Quantidade,
 			Provisoria:     item.Provisoria,
+			Origem:         item.Origem,
 		})
 	}
 	body, err := json.Marshal(map[string]any{"itens": rows})

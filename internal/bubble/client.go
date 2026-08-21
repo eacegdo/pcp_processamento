@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/wellington/pcp_processamento/internal/domain"
 )
 
 const (
@@ -20,6 +22,7 @@ const (
 	TypeImportacaoEscola = "importação_escola"
 	DefaultPageSize      = 100
 	BaseURLVersionTest   = "https://eace.org.br/version-test/api/1.1"
+	BaseURLLive          = "https://eace.org.br/api/1.1"
 )
 
 // Client talks to the Bubble Data API (/obj/{type}).
@@ -52,6 +55,29 @@ func RecusaLive(baseURL string) error {
 		return ErrLiveIndisponivel
 	}
 	return nil
+}
+
+func OrigemDaBase(baseURL string) string {
+	u := strings.ToLower(strings.TrimSpace(baseURL))
+	if strings.Contains(u, "version-test") {
+		return domain.OrigemVersionTest
+	}
+	if strings.Contains(u, "eace.org.br") {
+		return domain.OrigemLive
+	}
+	return ""
+}
+
+// BaseDoAmbiente returns the Data API URL for "test" (version-test) or "live".
+func BaseDoAmbiente(env string) (string, error) {
+	switch strings.ToLower(strings.TrimSpace(env)) {
+	case "", "test", "teste", "version-test":
+		return BaseURLVersionTest, nil
+	case "live", "prod", "produção", "producao":
+		return BaseURLLive, nil
+	default:
+		return "", fmt.Errorf("env inválido %q (use test ou live)", env)
+	}
 }
 
 func (c *Client) List(typeName string, limit, cursor int) (Page, error) {

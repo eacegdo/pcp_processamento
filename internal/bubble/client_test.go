@@ -64,3 +64,29 @@ func TestRecusaLive(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestOrigemDaBase(t *testing.T) {
+	if bubble.OrigemDaBase(bubble.BaseURLVersionTest) != "version-test" {
+		t.Fatal("version-test")
+	}
+	if bubble.OrigemDaBase("https://eace.org.br/api/1.1") != "live" {
+		t.Fatal("live")
+	}
+	if bubble.OrigemDaBase("http://127.0.0.1:1") != "" {
+		t.Fatal("localhost")
+	}
+}
+
+func TestBaseDoAmbiente(t *testing.T) {
+	testURL, err := bubble.BaseDoAmbiente("test")
+	if err != nil || testURL != bubble.BaseURLVersionTest {
+		t.Fatalf("test = %q %v", testURL, err)
+	}
+	liveURL, err := bubble.BaseDoAmbiente("live")
+	if err != nil || liveURL != bubble.BaseURLLive {
+		t.Fatalf("live = %q %v", liveURL, err)
+	}
+	if _, err := bubble.BaseDoAmbiente("staging"); err == nil {
+		t.Fatal("staging")
+	}
+}

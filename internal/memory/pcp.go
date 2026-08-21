@@ -132,6 +132,7 @@ func (s *PcpStore) applyProgramado(item domain.ItemCarga) {
 		existing.FornecedorCNPJ = item.FornecedorCNPJ
 		existing.Quantidade = item.Quantidade
 		existing.Provisoria = item.Provisoria
+		existing.Origem = item.Origem
 		s.byChave[k] = existing
 		return
 	}
@@ -150,5 +151,6 @@ func (s *PcpStore) applyProgramado(item domain.ItemCarga) {
 		FornecedorCNPJ: item.FornecedorCNPJ,
 		Quantidade:     item.Quantidade,
 		Provisoria:     item.Provisoria,
+		Origem:         item.Origem,
 	}
 }
