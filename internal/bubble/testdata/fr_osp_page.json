@@ -1,0 +1,24 @@
+{
+  "response": {
+    "cursor": 0,
+    "count": 1,
+    "remaining": 27,
+    "results": [
+      {
+        "_id": "1755174453353x161251220653761100",
+        "INEP": "15026868",
+        "UF": "PA",
+        "Município": "Curralinho",
+        "Escola": "1714073828640x489578506543044700",
+        "OSP": "1755173887503x198482849644412930",
+        "status": "Aprovado",
+        "Tipo": "4-IMPLANTAÇÃO_DE_REDE_INTERNA",
+        "data prevista para pagamento": "2025-12-10T03:00:00.000Z",
+        "Validado financeiro": true,
+        "Validado Regional": true,
+        "Validado sala técnica": true,
+        "Valor total": 13739.72
+      }
+    ]
+  }
+}

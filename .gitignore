@@ -10,6 +10,10 @@
 *.test
 *.out
 /pcp-processamento
+/puxar-programado
+
+# Saída gerada do puxar Programado
+/programado.json
 
 # Go
 vendor/

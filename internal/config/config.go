@@ -13,6 +13,8 @@ type Config struct {
 	BatchSize              int
 	BatchMaxRetries        int
 	HTTPAddr               string
+	BubbleBaseURL          string
+	BubbleAPIToken         string
 }
 
 func Load() (Config, error) {
@@ -23,6 +25,8 @@ func Load() (Config, error) {
 		BatchSize:              200,
 		BatchMaxRetries:        3,
 		HTTPAddr:               ":8080",
+		BubbleBaseURL:          os.Getenv("BUBBLE_BASE_URL"),
+		BubbleAPIToken:         os.Getenv("BUBBLE_API_TOKEN"),
 	}
 	if cfg.SupabaseURL == "" || cfg.SupabaseServiceRoleKey == "" || cfg.APIKey == "" {
 		return Config{}, fmt.Errorf("SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY e API_KEY são obrigatórios")
