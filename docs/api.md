@@ -36,12 +36,16 @@ curl -sS -X POST http://localhost:8080/v1/programado \
   -d @docs/exemplos/programado.json
 ```
 
-**Puxar Programado** (Data API version-test → Job) — espera `201` e `"tipo":"programado"`:
+**Puxar Programado** (body com `mes` e `env`) — espera `201` e `"tipo":"programado"`:
 
 ```bash
-curl -sS -X POST "http://localhost:8080/v1/programado/puxar?mes=2026-08" \
-  -H "X-API-Key: $API_KEY"
+curl -sS -X POST http://localhost:8080/v1/programado/puxar \
+  -H "X-API-Key: $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"mes":"2026-08","env":"test"}'
 ```
+
+Live: o mesmo POST com `"env":"live"`.
 
 **Programado** (um objeto inline):
 
@@ -256,6 +260,31 @@ No Bubble: POST com o JSON no body (não multipart).
 
 ---
 
+## `POST /v1/programado/puxar`
+
+Puxa o Programado da Data API do Bubble e enfileira o mesmo Job do POST `/v1/programado`. JSON no body — **não** usa query string.
+
+```json
+{"mes":"2026-08","env":"test"}
+```
+
+| Campo | Obrigatório | Formato |
+| --- | --- | --- |
+| `mes` | não | `YYYY-MM`; vazio = mês atual em `America/Sao_Paulo` |
+| `env` | não | `test` (padrão, version-test) ou `live` |
+
+Body vazio `{}` ou ausente usa os padrões. Token: `BUBBLE_API_TOKEN` na test; `BUBBLE_API_TOKEN_LIVE` na live (senão o mesmo da test).
+
+Resposta `201`:
+
+```json
+{"id":"<uuid>","tipo":"programado","itens":4,"skips":1,"origem":"version-test"}
+```
+
+`origem` é `version-test` ou `live` e vai para `pcp`. Sem token daquele ambiente: `503`.
+
+---
+
 ## Erros
 
 | Status | `error` | Quando |
@@ -264,6 +293,9 @@ No Bubble: POST com o JSON no body (não multipart).
 | `400` | `carga obrigatória` | Planejado sem campo `file` |
 | `400` | `csv inválido` | CSV ilegível, header errado ou sem linhas válidas |
 | `400` | `json inválido` | Body ilegível, vazio ou sem objetos válidos |
+| `400` | `env inválido` | Puxar com `env` diferente de `test` / `live` |
+| `400` | `mês inválido` | Puxar com `mes` que não é `YYYY-MM` |
+| `503` | `bubble não configurado` | Puxar sem token daquele ambiente |
 | `413` | `json grande demais` | Body > 16 MB |
 | `500` | `falha ao criar job` | Persistência do Job falhou |
 

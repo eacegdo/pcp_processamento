@@ -16,17 +16,98 @@ import (
 
 func TestPuxarProgramadoSemBubbleRetorna503(t *testing.T) {
 	srv := httpapi.NewServer(testAPIKey, memory.NewJobStore())
-	req := httptest.NewRequest(http.MethodPost, "/v1/programado/puxar?mes=2026-08", nil)
-	req.Header.Set("X-API-Key", testAPIKey)
-	rec := httptest.NewRecorder()
-	srv.ServeHTTP(rec, req)
+	rec := postPuxar(t, srv, `{"mes":"2026-08","env":"test"}`)
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d", rec.Code)
+	}
+}
+
+func TestPuxarProgramadoEnvInvalidoRetorna400(t *testing.T) {
+	srv := httpapi.NewServer(testAPIKey, memory.NewJobStore()).WithBubble(bubble.NewClient("http://127.0.0.1", "tok", nil))
+	rec := postPuxar(t, srv, `{"mes":"2026-08","env":"staging"}`)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestPuxarProgramadoLiveSemClienteRetorna503(t *testing.T) {
+	srv := httpapi.NewServer(testAPIKey, memory.NewJobStore()).WithBubble(bubble.NewClient("http://127.0.0.1", "tok", nil))
+	rec := postPuxar(t, srv, `{"mes":"2026-08","env":"live"}`)
 	if rec.Code != http.StatusServiceUnavailable {
 		t.Fatalf("status = %d", rec.Code)
 	}
 }
 
 func TestPuxarProgramadoEnfileiraJobEAplica(t *testing.T) {
-	bubbleSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	bubbleSrv := fakeBubblePuxar(t)
+	pcp := memory.NewPcpStore()
+	jobs := memory.NewJobStore()
+	w := worker.New(jobs, pcp, worker.Config{BatchSize: 200, MaxRetries: 3})
+	srv := httpapi.NewServer(testAPIKey, jobs).WithBubble(bubble.NewClient(bubbleSrv.URL, "tok", bubbleSrv.Client()))
+
+	rec := postPuxar(t, srv, `{"mes":"2026-08","env":"test"}`)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		ID     string `json:"id"`
+		Tipo   string `json:"tipo"`
+		Itens  int    `json:"itens"`
+		Origem string `json:"origem"`
+	}
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp.Tipo != "programado" || resp.Itens != 1 || resp.Origem != "version-test" {
+		t.Fatalf("%+v", resp)
+	}
+	drain(w)
+
+	got, ok := pcp.GetProgramado(dia(2026, 8, 8), "15026868")
+	if !ok || got.Fase != "3" || got.Regional != "NO" || got.Quantidade != 1 {
+		t.Fatalf("ok=%v %+v", ok, got)
+	}
+	if got.Origem != "version-test" {
+		t.Fatalf("origem = %q", got.Origem)
+	}
+	job, _ := jobs.Get(resp.ID)
+	if job.Status != "success" {
+		t.Fatalf("job = %+v", job)
+	}
+}
+
+func TestPuxarProgramadoLiveGravaOrigemLive(t *testing.T) {
+	bubbleSrv := fakeBubblePuxar(t)
+	pcp := memory.NewPcpStore()
+	jobs := memory.NewJobStore()
+	w := worker.New(jobs, pcp, worker.Config{BatchSize: 200, MaxRetries: 3})
+	srv := httpapi.NewServer(testAPIKey, jobs).WithBubbleEnv("live", bubble.NewClient(bubbleSrv.URL, "tok", bubbleSrv.Client()))
+
+	rec := postPuxar(t, srv, `{"mes":"2026-08","env":"live"}`)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	drain(w)
+
+	got, ok := pcp.GetProgramado(dia(2026, 8, 8), "15026868")
+	if !ok || got.Origem != "live" {
+		t.Fatalf("ok=%v origem=%q", ok, got.Origem)
+	}
+}
+
+func postPuxar(t *testing.T, srv http.Handler, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, "/v1/programado/puxar", strings.NewReader(body))
+	req.Header.Set("X-API-Key", testAPIKey)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, req)
+	return rec
+}
+
+func fakeBubblePuxar(t *testing.T) *httptest.Server {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
 		case r.URL.Path == "/obj/osp":
@@ -66,39 +147,6 @@ func TestPuxarProgramadoEnfileiraJobEAplica(t *testing.T) {
 			http.NotFound(w, r)
 		}
 	}))
-	t.Cleanup(bubbleSrv.Close)
-
-	pcp := memory.NewPcpStore()
-	jobs := memory.NewJobStore()
-	w := worker.New(jobs, pcp, worker.Config{BatchSize: 200, MaxRetries: 3})
-	srv := httpapi.NewServer(testAPIKey, jobs).WithBubble(bubble.NewClient(bubbleSrv.URL, "tok", bubbleSrv.Client()))
-
-	req := httptest.NewRequest(http.MethodPost, "/v1/programado/puxar?mes=2026-08", nil)
-	req.Header.Set("X-API-Key", testAPIKey)
-	rec := httptest.NewRecorder()
-	srv.ServeHTTP(rec, req)
-	if rec.Code != http.StatusCreated {
-		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
-	}
-	var resp struct {
-		ID    string `json:"id"`
-		Tipo  string `json:"tipo"`
-		Itens int    `json:"itens"`
-	}
-	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
-		t.Fatal(err)
-	}
-	if resp.Tipo != "programado" || resp.Itens != 1 {
-		t.Fatalf("%+v", resp)
-	}
-	drain(w)
-
-	got, ok := pcp.GetProgramado(dia(2026, 8, 8), "15026868")
-	if !ok || got.Fase != "3" || got.Regional != "NO" || got.Quantidade != 1 {
-		t.Fatalf("ok=%v %+v", ok, got)
-	}
-	job, _ := jobs.Get(resp.ID)
-	if job.Status != "success" {
-		t.Fatalf("job = %+v", job)
-	}
+	t.Cleanup(srv.Close)
+	return srv
 }

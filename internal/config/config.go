@@ -15,6 +15,7 @@ type Config struct {
 	HTTPAddr               string
 	BubbleBaseURL          string
 	BubbleAPIToken         string
+	BubbleAPITokenLive     string
 }
 
 func Load() (Config, error) {
@@ -27,6 +28,7 @@ func Load() (Config, error) {
 		HTTPAddr:               ":8080",
 		BubbleBaseURL:          os.Getenv("BUBBLE_BASE_URL"),
 		BubbleAPIToken:         os.Getenv("BUBBLE_API_TOKEN"),
+		BubbleAPITokenLive:     os.Getenv("BUBBLE_API_TOKEN_LIVE"),
 	}
 	if cfg.SupabaseURL == "" || cfg.SupabaseServiceRoleKey == "" || cfg.APIKey == "" {
 		return Config{}, fmt.Errorf("SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY e API_KEY são obrigatórios")

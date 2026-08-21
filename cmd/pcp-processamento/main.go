@@ -29,17 +29,18 @@ func main() {
 		MaxRetries: cfg.BatchMaxRetries,
 	})
 	srv := httpapi.NewServer(cfg.APIKey, jobs)
-	if token := strings.TrimSpace(cfg.BubbleAPIToken); token != "" {
-		base := strings.TrimSpace(cfg.BubbleBaseURL)
-		if base == "" {
-			base = bubble.BaseURLVersionTest
-		}
-		if err := bubble.RecusaLive(base); err != nil {
-			log.Printf("puxar desligado: %v", err)
-		} else {
-			srv.WithBubble(bubble.NewClient(base, token, nil))
-			log.Printf("puxar Programado em POST /v1/programado/puxar (%s)", base)
-		}
+	tokenTest := strings.TrimSpace(cfg.BubbleAPIToken)
+	tokenLive := strings.TrimSpace(cfg.BubbleAPITokenLive)
+	if tokenLive == "" {
+		tokenLive = tokenTest
+	}
+	if tokenTest != "" {
+		srv.WithBubbleEnv(bubble.AmbienteTest, bubble.NewClient(bubble.BaseURLVersionTest, tokenTest, nil))
+		log.Printf("puxar Programado POST /v1/programado/puxar env=test")
+	}
+	if tokenLive != "" {
+		srv.WithBubbleEnv(bubble.AmbienteLive, bubble.NewClient(bubble.BaseURLLive, tokenLive, nil))
+		log.Printf("puxar Programado POST /v1/programado/puxar env=live")
 	}
 
 	go runWorker(w)

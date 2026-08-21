@@ -68,16 +68,46 @@ func OrigemDaBase(baseURL string) string {
 	return ""
 }
 
-// BaseDoAmbiente returns the Data API URL for "test" (version-test) or "live".
-func BaseDoAmbiente(env string) (string, error) {
+const (
+	AmbienteTest = "test"
+	AmbienteLive = "live"
+)
+
+var ErrAmbienteInvalido = fmt.Errorf("env inválido (use test ou live)")
+
+// Ambiente normalizes "test" / "live" (empty means test).
+func Ambiente(env string) (string, error) {
 	switch strings.ToLower(strings.TrimSpace(env)) {
 	case "", "test", "teste", "version-test":
-		return BaseURLVersionTest, nil
+		return AmbienteTest, nil
 	case "live", "prod", "produção", "producao":
-		return BaseURLLive, nil
+		return AmbienteLive, nil
 	default:
-		return "", fmt.Errorf("env inválido %q (use test ou live)", env)
+		return "", fmt.Errorf("%w: %s", ErrAmbienteInvalido, env)
 	}
+}
+
+func OrigemDoAmbiente(env string) (string, error) {
+	amb, err := Ambiente(env)
+	if err != nil {
+		return "", err
+	}
+	if amb == AmbienteLive {
+		return domain.OrigemLive, nil
+	}
+	return domain.OrigemVersionTest, nil
+}
+
+// BaseDoAmbiente returns the Data API URL for "test" (version-test) or "live".
+func BaseDoAmbiente(env string) (string, error) {
+	amb, err := Ambiente(env)
+	if err != nil {
+		return "", err
+	}
+	if amb == AmbienteLive {
+		return BaseURLLive, nil
+	}
+	return BaseURLVersionTest, nil
 }
 
 func (c *Client) List(typeName string, limit, cursor int) (Page, error) {

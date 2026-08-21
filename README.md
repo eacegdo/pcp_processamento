@@ -83,7 +83,7 @@ Carregue as variáveis do `.env` no terminal antes dos curls:
 set -a && source .env && set +a
 ```
 
-Se `BUBBLE_API_TOKEN` estiver preenchido, a API também aceita `POST /v1/programado/puxar` (hoje só **version-test**; live pelo CLI, seção 6).
+Se `BUBBLE_API_TOKEN` (e, se quiser live, `BUBBLE_API_TOKEN_LIVE`) estiver preenchido, a API aceita `POST /v1/programado/puxar` com body `{"mes":"2026-08","env":"test"}` ou `"env":"live"`.
 
 ---
 
@@ -215,16 +215,21 @@ Se a live ainda não expuser `/obj/osp`, `-env live` falha com o erro HTTP do Bu
 
 ### Puxar pela API HTTP
 
-Com `go run ./cmd/pcp-processamento` no ar e `BUBBLE_API_TOKEN` no `.env` (version-test):
+Com `go run ./cmd/pcp-processamento` no ar e os tokens no `.env`. O body escolhe o mês e o ambiente (padrão `env` = `test`; sem `mes` usa o mês atual):
 
 ```bash
-curl -X POST "http://localhost:8080/v1/programado/puxar?mes=2026-08" \
-  -H "X-API-Key: $API_KEY"
+curl -X POST http://localhost:8080/v1/programado/puxar \
+  -H "X-API-Key: $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"mes":"2026-08","env":"test"}'
+
+curl -X POST http://localhost:8080/v1/programado/puxar \
+  -H "X-API-Key: $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"mes":"2026-08","env":"live"}'
 ```
 
-Resposta `201`: `{"id":"<uuid>","tipo":"programado","itens":N,"skips":N}`. O worker aplica em seguida.
-
-Para **live**, use o CLI com `-env live`.
+Resposta `201`: `{"id":"<uuid>","tipo":"programado","itens":N,"skips":N,"origem":"version-test"}`. O worker aplica em seguida. Live usa `BUBBLE_API_TOKEN_LIVE` se existir; senão o mesmo token da test.
 
 ---
 

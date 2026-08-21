@@ -90,3 +90,17 @@ func TestBaseDoAmbiente(t *testing.T) {
 		t.Fatal("staging")
 	}
 }
+
+func TestAmbienteEOrigem(t *testing.T) {
+	amb, err := bubble.Ambiente("")
+	if err != nil || amb != bubble.AmbienteTest {
+		t.Fatalf("vazio = %q %v", amb, err)
+	}
+	origem, err := bubble.OrigemDoAmbiente("live")
+	if err != nil || origem != "live" {
+		t.Fatalf("live origem = %q %v", origem, err)
+	}
+	if _, err := bubble.Ambiente("staging"); err == nil {
+		t.Fatal("staging")
+	}
+}
