@@ -507,3 +507,56 @@ func TestMontarMesErroDeImportacoesDoMesPropaga(t *testing.T) {
 		t.Fatalf("resultado parcial: %+v", got.Itens)
 	}
 }
+
+func TestMontarMesResumoContaAsDuasOrigens(t *testing.T) {
+	f := &fonteFalsa{
+		osps: []bubble.OSP{
+			// entra pela previsão de agosto
+			{ID: "ospPrev", Status: "Nota Fiscal", PrevisaoEntrega: "2026-08-08T17:44:00.000Z", FRs: []string{"frPrev"}},
+			// entra pela conexão de agosto, com previsão em julho
+			{ID: "ospConex", Status: "Nota Fiscal", PrevisaoEntrega: "2026-07-10T17:44:00.000Z", FRs: []string{"frConex"}},
+			// previsão em agosto, mas conectou em julho: cai no filtro de data
+			{ID: "ospFora", Status: "Nota Fiscal", PrevisaoEntrega: "2026-08-20T17:44:00.000Z", FRs: []string{"frFora"}},
+		},
+		folhas: []bubble.FolhaOSP{
+			{ID: "frPrev", INEP: "prev", EscolaID: "ePrev", OSPID: "ospPrev", ListaContratosInstalacao: []string{"c1"}},
+			{ID: "frConex", INEP: "conex", EscolaID: "eConex", OSPID: "ospConex", ListaContratosInstalacao: []string{"c1"}},
+			{ID: "frFora", INEP: "fora", EscolaID: "eFora", OSPID: "ospFora", ListaContratosInstalacao: []string{"c1"}},
+		},
+		escolas: []bubble.Escola{
+			escolaOK("ePrev", "prev", "Em planejamento"),
+			escolaOK("eConex", "conex", bubble.StatusConectada),
+			escolaOK("eFora", "fora", bubble.StatusConectada),
+		},
+		contratos: []bubble.ContratoInstalacao{kitRI("c1")},
+		importacoes: []bubble.ImportacaoEscola{
+			{ID: "i1", INEP: "conex", DataRelatorio: "2026-08-05T10:00:00.000Z"},
+			{ID: "i2", INEP: "fora", DataRelatorio: "2026-07-15T10:00:00.000Z"},
+		},
+	}
+	got, err := bubble.MontarMes(f, agosto)
+	if err != nil {
+		t.Fatal(err)
+	}
+	quer := bubble.PuxarResumo{OSPsPorPrevisao: 2, OSPsPorConexao: 1, OSPsUnicas: 3, ItensForaDoMes: 1}
+	if got.Resumo != quer {
+		t.Fatalf("resumo = %+v, quer %+v", got.Resumo, quer)
+	}
+}
+
+func TestMontarMesResumoComConexaoVazia(t *testing.T) {
+	f := &fonteFalsa{
+		osps:      []bubble.OSP{{ID: "osp1", Status: "Nota Fiscal", PrevisaoEntrega: "2026-08-08T17:44:00.000Z", FRs: []string{"fr1"}}},
+		folhas:    []bubble.FolhaOSP{{ID: "fr1", INEP: "1", EscolaID: "e1", OSPID: "osp1", ListaContratosInstalacao: []string{"c1"}}},
+		escolas:   []bubble.Escola{escolaOK("e1", "1", "Em planejamento")},
+		contratos: []bubble.ContratoInstalacao{kitRI("c1")},
+	}
+	got, err := bubble.MontarMes(f, agosto)
+	if err != nil {
+		t.Fatal(err)
+	}
+	quer := bubble.PuxarResumo{OSPsPorPrevisao: 1, OSPsPorConexao: 0, OSPsUnicas: 1, ItensForaDoMes: 0}
+	if got.Resumo != quer {
+		t.Fatalf("resumo = %+v, quer %+v", got.Resumo, quer)
+	}
+}

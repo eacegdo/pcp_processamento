@@ -48,6 +48,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("puxar: %v", err)
 	}
+	log.Printf("resumo: %s", got.Resumo)
 	for _, s := range got.Skips {
 		log.Printf("skip folha=%s inep=%s: %s", s.FolhaID, s.INEP, s.Motivo)
 	}

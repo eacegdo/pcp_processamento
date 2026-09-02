@@ -21,8 +21,22 @@ type PuxarSkip struct {
 }
 
 type Puxado struct {
-	Itens []domain.ItemCarga
-	Skips []PuxarSkip
+	Itens  []domain.ItemCarga
+	Skips  []PuxarSkip
+	Resumo PuxarResumo
+}
+
+// PuxarResumo conta o que cada caminho trouxe para o mês.
+type PuxarResumo struct {
+	OSPsPorPrevisao int
+	OSPsPorConexao  int
+	OSPsUnicas      int
+	ItensForaDoMes  int
+}
+
+func (r PuxarResumo) String() string {
+	return fmt.Sprintf("%d OSPs por previsão, %d por conexão, %d após dedupe, %d itens fora do mês",
+		r.OSPsPorPrevisao, r.OSPsPorConexao, r.OSPsUnicas, r.ItensForaDoMes)
 }
 
 type jsonItem struct {

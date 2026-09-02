@@ -45,8 +45,12 @@ func MontarMes(fonte FonteBusca, mes time.Time) (Puxado, error) {
 	for _, osp := range osps {
 		frIDs = append(frIDs, osp.FRs...)
 	}
-	log.Printf("puxar: %d OSPs por previsão, %d por conexão, %d após dedupe; %d folhas; buscando em lote",
-		len(ospsPrevisao), len(ospsConexao), len(osps), len(uniqueNonEmpty(frIDs)))
+	resumo := PuxarResumo{
+		OSPsPorPrevisao: len(ospsPrevisao),
+		OSPsPorConexao:  len(ospsConexao),
+		OSPsUnicas:      len(osps),
+	}
+	log.Printf("puxar: %s; %d folhas; buscando em lote", resumo, len(uniqueNonEmpty(frIDs)))
 
 	folhas, err := fonte.FolhasPorIDs(frIDs)
 	if err != nil {
@@ -94,7 +98,7 @@ func MontarMes(fonte FonteBusca, mes time.Time) (Puxado, error) {
 		return Puxado{}, err
 	}
 
-	out := Puxado{Itens: make([]domain.ItemCarga, 0), Skips: make([]PuxarSkip, 0)}
+	out := Puxado{Itens: make([]domain.ItemCarga, 0), Skips: make([]PuxarSkip, 0), Resumo: resumo}
 	for _, osp := range osps {
 		for _, fid := range osp.FRs {
 			fid = strings.TrimSpace(fid)
@@ -131,12 +135,14 @@ func MontarMes(fonte FonteBusca, mes time.Time) (Puxado, error) {
 			// O mês é o da data que vai ser gravada no Registro PCP, não o da
 			// previsão de entrega: item com data de outro mês não pertence a este.
 			if !DataNoMes(item.Data, mes) {
+				out.Resumo.ItensForaDoMes++
 				out.Skips = append(out.Skips, PuxarSkip{OSPID: osp.ID, FolhaID: folha.ID, INEP: inep, Motivo: SkipForaDoMes})
 				continue
 			}
 			out.Itens = append(out.Itens, item)
 		}
 	}
+	log.Printf("puxar: %s; %d itens, %d skips", out.Resumo, len(out.Itens), len(out.Skips))
 	return out, nil
 }
 

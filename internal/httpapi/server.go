@@ -208,6 +208,12 @@ func (s *Server) handlePuxarProgramado(rw http.ResponseWriter, req *http.Request
 		"itens":  len(items),
 		"skips":  len(got.Skips),
 		"origem": origem,
+		"resumo": map[string]int{
+			"osps_por_previsao": got.Resumo.OSPsPorPrevisao,
+			"osps_por_conexao":  got.Resumo.OSPsPorConexao,
+			"osps_unicas":       got.Resumo.OSPsUnicas,
+			"itens_fora_do_mes": got.Resumo.ItensForaDoMes,
+		},
 	})
 }
 
