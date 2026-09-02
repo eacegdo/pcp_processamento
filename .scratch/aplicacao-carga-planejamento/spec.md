@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: done
 
 # Spec: Aplicação da Carga de Planejamento
 

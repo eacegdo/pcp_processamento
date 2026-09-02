@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: done
 
 # Spec: Espelho do Mês do Programado
 
