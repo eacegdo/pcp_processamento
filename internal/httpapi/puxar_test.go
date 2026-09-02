@@ -95,6 +95,90 @@ func TestPuxarProgramadoLiveGravaOrigemLive(t *testing.T) {
 	}
 }
 
+// Ponta a ponta do caminho novo: o único item do mês existe porque a Escola
+// conectou nele; a Folha de Registro vem de um mês anterior.
+func TestPuxarProgramadoItemSoPorConexao(t *testing.T) {
+	bubbleSrv := fakeBubbleSoConexao(t)
+	pcp := memory.NewPcpStore()
+	jobs := memory.NewJobStore()
+	w := worker.New(jobs, pcp, worker.Config{BatchSize: 200, MaxRetries: 3})
+	srv := httpapi.NewServer(testAPIKey, jobs).WithBubble(bubble.NewClient(bubbleSrv.URL, "tok", bubbleSrv.Client()))
+
+	rec := postPuxar(t, srv, `{"mes":"2026-08","env":"test"}`)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		ID     string `json:"id"`
+		Itens  int    `json:"itens"`
+		Resumo struct {
+			PorPrevisao int `json:"osps_por_previsao"`
+			PorConexao  int `json:"osps_por_conexao"`
+		} `json:"resumo"`
+	}
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp.Itens != 1 || resp.Resumo.PorPrevisao != 0 || resp.Resumo.PorConexao != 1 {
+		t.Fatalf("%+v", resp)
+	}
+	drain(w)
+
+	got, ok := pcp.GetProgramado(dia(2026, 8, 5), "15026868")
+	if !ok || got.Fase != "3" || got.Regional != "NO" || got.Quantidade != 1 {
+		t.Fatalf("ok=%v %+v", ok, got)
+	}
+	if _, ainda := pcp.GetProgramado(dia(2026, 7, 10), "15026868"); ainda {
+		t.Fatal("gravou também na previsão de julho")
+	}
+	job, _ := jobs.Get(resp.ID)
+	if job.Status != "success" {
+		t.Fatalf("job = %+v", job)
+	}
+}
+
+func fakeBubbleSoConexao(t *testing.T) *httptest.Server {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		cons := r.URL.Query().Get("constraints")
+		switch {
+		case r.URL.Path == "/obj/osp" && strings.Contains(cons, "Previsão de entrega"):
+			_, _ = io.WriteString(w, `{"response":{"cursor":0,"remaining":0,"results":[]}}`)
+		case r.URL.Path == "/obj/osp":
+			_, _ = io.WriteString(w, `{"response":{"cursor":0,"remaining":0,"results":[{
+			  "_id":"osp1","status":"Nota Fiscal","OSnum":13,
+			  "Previsão de entrega":"2026-07-10T17:44:00.000Z","FR":["fr1"]
+			}]}}`)
+		case strings.Contains(r.URL.Path, "import"):
+			_, _ = io.WriteString(w, `{"response":{"cursor":0,"remaining":0,"results":[{
+			  "inep":"15026868","data_relatorio":"2026-08-05T17:55:00.000Z"
+			}]}}`)
+		case r.URL.Path == "/obj/fr_osp":
+			_, _ = io.WriteString(w, `{"response":{"cursor":0,"remaining":0,"results":[{
+			  "_id":"fr1","INEP":"15026868","UF":"PA","Escola":"esc1","OSP":"osp1",
+			  "lista de contratos_instalação":["c1"]
+			}]}}`)
+		case r.URL.Path == "/obj/contrato_taxa_instalacao":
+			_, _ = io.WriteString(w, `{"response":{"cursor":0,"remaining":0,"results":[{
+			  "_id":"c1","Descrição":"Kit Cobertura Wi-Fi",
+			  "Tipo de obra":"4-IMPLANTAÇÃO_DE_REDE_INTERNA"
+			}]}}`)
+		case r.URL.Path == "/obj/escolas":
+			_, _ = io.WriteString(w, `{"response":{"cursor":0,"remaining":0,"results":[{
+			  "_id":"esc1","INEP":"15026868","UF":"PA","FASE":"3","Regional":"Norte",
+			  "Status Geral":"Conectada","fornecedor_ri":"Q13 TECNOLOGIA",
+			  "cnpj_fornecedor_ri":"30.161.238/0001-60"
+			}]}}`)
+		default:
+			t.Errorf("path inesperado %s", r.URL.Path)
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
 func postPuxar(t *testing.T, srv http.Handler, body string) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodPost, "/v1/programado/puxar", strings.NewReader(body))
