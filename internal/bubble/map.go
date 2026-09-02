@@ -162,6 +162,31 @@ func ConstraintsOSPMes(mes time.Time) string {
 	return string(b)
 }
 
+// ConstraintsImportacaoMes is the Data API constraint JSON: data_relatorio dentro do mês civil.
+func ConstraintsImportacaoMes(mes time.Time) string {
+	ini := time.Date(mes.Year(), mes.Month(), 1, 0, 0, 0, 0, locBR())
+	fim := ini.AddDate(0, 1, 0)
+	cons := []map[string]string{
+		{"key": "data_relatorio", "constraint_type": "greater than", "value": ini.UTC().Add(-time.Second).Format("2006-01-02T15:04:05.000Z")},
+		{"key": "data_relatorio", "constraint_type": "less than", "value": fim.UTC().Format("2006-01-02T15:04:05.000Z")},
+	}
+	b, _ := json.Marshal(cons)
+	return string(b)
+}
+
+// ConstraintsFolhasINEPs filtra fr_osp pela chave INEP da folha (não a da escola).
+// Lista vazia continua sendo uma constraint "in" de lista vazia, que não casa nada,
+// em vez de virar consulta sem constraint (que devolveria a coleção inteira).
+func ConstraintsFolhasINEPs(ineps []string) string {
+	if ineps == nil {
+		ineps = []string{}
+	}
+	b, _ := json.Marshal([]map[string]any{
+		{"key": "INEP", "constraint_type": "in", "value": ineps},
+	})
+	return string(b)
+}
+
 func ContratoKitRedeInterna(c ContratoInstalacao) bool {
 	if c.TipoDeObra != TipoObraRedeInterna {
 		return false

@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -219,5 +220,66 @@ func TestDecodeOSPRegionalAceitaListaOuTexto(t *testing.T) {
 	}
 	if string(texto.Regional) != "NE-I" {
 		t.Fatalf("texto = %q", texto.Regional)
+	}
+}
+
+func TestConstraintsImportacaoMesCobreOMesCivil(t *testing.T) {
+	raw := bubble.ConstraintsImportacaoMes(time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC))
+	var cons []map[string]string
+	if err := json.Unmarshal([]byte(raw), &cons); err != nil {
+		t.Fatal(err)
+	}
+	if len(cons) != 2 {
+		t.Fatalf("%s", raw)
+	}
+	for _, c := range cons {
+		if c["key"] != "data_relatorio" {
+			t.Fatalf("key = %q", c["key"])
+		}
+	}
+	// mesma convenção de ConstraintsOSPMes: (>= dia 1 00:00 BRT) e (< dia 1 do mês seguinte)
+	ospRaw := bubble.ConstraintsOSPMes(time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC))
+	var ospCons []map[string]string
+	if err := json.Unmarshal([]byte(ospRaw), &ospCons); err != nil {
+		t.Fatal(err)
+	}
+	if cons[0]["constraint_type"] != ospCons[0]["constraint_type"] || cons[0]["value"] != ospCons[0]["value"] {
+		t.Fatalf("limite inicial = %v, osp = %v", cons[0], ospCons[0])
+	}
+	if cons[1]["constraint_type"] != ospCons[1]["constraint_type"] || cons[1]["value"] != ospCons[1]["value"] {
+		t.Fatalf("limite final = %v, osp = %v", cons[1], ospCons[1])
+	}
+}
+
+func TestConstraintsFolhasINEPsUsaINEPDaFolha(t *testing.T) {
+	raw := bubble.ConstraintsFolhasINEPs([]string{"15026868", "15026869"})
+	var cons []map[string]any
+	if err := json.Unmarshal([]byte(raw), &cons); err != nil {
+		t.Fatal(err)
+	}
+	if len(cons) != 1 || cons[0]["key"] != "INEP" || cons[0]["constraint_type"] != "in" {
+		t.Fatalf("%s", raw)
+	}
+	vals, ok := cons[0]["value"].([]any)
+	if !ok || len(vals) != 2 || vals[0] != "15026868" {
+		t.Fatalf("value = %v", cons[0]["value"])
+	}
+}
+
+func TestConstraintsFolhasINEPsVaziaNaoDevolveColecaoInteira(t *testing.T) {
+	raw := bubble.ConstraintsFolhasINEPs(nil)
+	if strings.TrimSpace(raw) == "" || raw == "[]" {
+		t.Fatalf("lista vazia não pode virar consulta sem constraint: %q", raw)
+	}
+	var cons []map[string]any
+	if err := json.Unmarshal([]byte(raw), &cons); err != nil {
+		t.Fatal(err)
+	}
+	if len(cons) != 1 || cons[0]["constraint_type"] != "in" {
+		t.Fatalf("%s", raw)
+	}
+	vals, ok := cons[0]["value"].([]any)
+	if !ok || len(vals) != 0 {
+		t.Fatalf("value = %v", cons[0]["value"])
 	}
 }
