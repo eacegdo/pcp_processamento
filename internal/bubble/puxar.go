@@ -3,7 +3,7 @@ package bubble
 import (
 	"encoding/json"
 	"fmt"
-	"log"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -64,106 +64,18 @@ func EncodeProgramadoJSON(items []domain.ItemCarga) ([]byte, error) {
 
 // PuxarMes monta o Programado do mês civil a partir da Data API (OSP, FR, kit RI, escola, importação).
 func (c *Client) PuxarMes(mes time.Time) (Puxado, error) {
-	osps, err := c.listOSPsDoMes(mes)
+	got, err := MontarMes(c, mes)
 	if err != nil {
 		return Puxado{}, err
 	}
-
-	frIDs := make([]string, 0)
-	for _, osp := range osps {
-		frIDs = append(frIDs, osp.FRs...)
-	}
-	log.Printf("puxar: %d OSPs, %d folhas; buscando em lote", len(osps), len(uniqueNonEmpty(frIDs)))
-
-	folhas, err := c.folhasPorIDs(frIDs)
-	if err != nil {
-		return Puxado{}, err
-	}
-
-	var contratoIDs, escolaIDs []string
-	for _, folha := range folhas {
-		contratoIDs = append(contratoIDs, folha.ListaContratosInstalacao...)
-		if id := strings.TrimSpace(folha.EscolaID); id != "" {
-			escolaIDs = append(escolaIDs, id)
-		}
-	}
-	contratos, err := c.contratosPorIDs(contratoIDs)
-	if err != nil {
-		return Puxado{}, err
-	}
-	escolas, err := c.escolasPorIDs(escolaIDs)
-	if err != nil {
-		return Puxado{}, err
-	}
-
-	var ineps []string
-	for _, esc := range escolas {
-		if EscolaConectada(&esc) {
-			if inep := strings.TrimSpace(esc.INEP); inep != "" {
-				ineps = append(ineps, inep)
-			}
-		}
-	}
-	// Folha INEP can differ from escola INEP; still look up by folha INEP when connected.
-	for _, folha := range folhas {
-		esc, ok := escolas[strings.TrimSpace(folha.EscolaID)]
-		if !ok {
-			continue
-		}
-		if EscolaConectada(&esc) {
-			if inep := strings.TrimSpace(folha.INEP); inep != "" {
-				ineps = append(ineps, inep)
-			}
-		}
-	}
-	imps, err := c.importacoesPorINEPs(ineps)
-	if err != nil {
-		return Puxado{}, err
-	}
-
 	origem := OrigemDaBase(c.BaseURL)
-	out := Puxado{Itens: make([]domain.ItemCarga, 0), Skips: make([]PuxarSkip, 0)}
-	for _, osp := range osps {
-		for _, fid := range osp.FRs {
-			fid = strings.TrimSpace(fid)
-			if fid == "" {
-				continue
-			}
-			folha, ok := folhas[fid]
-			if !ok {
-				out.Skips = append(out.Skips, PuxarSkip{OSPID: osp.ID, FolhaID: fid, Motivo: "folha não encontrada"})
-				continue
-			}
-			folhaContratos := map[string]ContratoInstalacao{}
-			for _, cid := range folha.ListaContratosInstalacao {
-				if ct, ok := contratos[strings.TrimSpace(cid)]; ok {
-					folhaContratos[cid] = ct
-				}
-			}
-			var escola *Escola
-			if id := strings.TrimSpace(folha.EscolaID); id != "" {
-				if esc, ok := escolas[id]; ok {
-					escola = &esc
-				}
-			}
-			inep := strings.TrimSpace(folha.INEP)
-			var imp *ImportacaoEscola
-			if EscolaConectada(escola) && inep != "" {
-				imp = imps[inep]
-			}
-			item, skip := ProgramadoDaFolha(osp, folha, escola, folhaContratos, imp)
-			if skip != "" {
-				out.Skips = append(out.Skips, PuxarSkip{OSPID: osp.ID, FolhaID: folha.ID, INEP: inep, Motivo: skip})
-				continue
-			}
-			item.Origem = origem
-			out.Itens = append(out.Itens, item)
-		}
+	for i := range got.Itens {
+		got.Itens[i].Origem = origem
 	}
-	return out, nil
+	return got, nil
 }
 
-func (c *Client) listOSPsDoMes(mes time.Time) ([]OSP, error) {
+func (c *Client) OSPsDoMes(mes time.Time) ([]OSP, error) {
 	cons := ConstraintsOSPMes(mes)
 	first, page, err := c.ListOSPs(DefaultPageSize, 0, cons)
 	if err != nil {
@@ -199,7 +111,7 @@ func (c *Client) listOSPsDoMes(mes time.Time) ([]OSP, error) {
 	return all, nil
 }
 
-func (c *Client) folhasPorIDs(ids []string) (map[string]FolhaOSP, error) {
+func (c *Client) FolhasPorIDs(ids []string) (map[string]FolhaOSP, error) {
 	return loadByIDs(ids,
 		func(part []string) ([]FolhaOSP, error) {
 			rows, _, err := c.ListFolhasOSPConstrained(DefaultPageSize, 0, ConstraintsIDs(part))
@@ -210,7 +122,7 @@ func (c *Client) folhasPorIDs(ids []string) (map[string]FolhaOSP, error) {
 	)
 }
 
-func (c *Client) contratosPorIDs(ids []string) (map[string]ContratoInstalacao, error) {
+func (c *Client) ContratosPorIDs(ids []string) (map[string]ContratoInstalacao, error) {
 	return loadByIDs(ids,
 		func(part []string) ([]ContratoInstalacao, error) {
 			rows, _, err := c.ListContratos(DefaultPageSize, 0, ConstraintsIDs(part))
@@ -221,7 +133,7 @@ func (c *Client) contratosPorIDs(ids []string) (map[string]ContratoInstalacao, e
 	)
 }
 
-func (c *Client) escolasPorIDs(ids []string) (map[string]Escola, error) {
+func (c *Client) EscolasPorIDs(ids []string) (map[string]Escola, error) {
 	return loadByIDs(ids,
 		func(part []string) ([]Escola, error) {
 			rows, _, err := c.ListEscolas(DefaultPageSize, 0, ConstraintsIDs(part))
@@ -232,7 +144,7 @@ func (c *Client) escolasPorIDs(ids []string) (map[string]Escola, error) {
 	)
 }
 
-func (c *Client) importacoesPorINEPs(ineps []string) (map[string]*ImportacaoEscola, error) {
+func (c *Client) ImportacoesPorINEPs(ineps []string) (map[string]*ImportacaoEscola, error) {
 	ineps = uniqueNonEmpty(ineps)
 	out := make(map[string]*ImportacaoEscola, len(ineps))
 	if len(ineps) == 0 {
@@ -292,6 +204,93 @@ func (c *Client) importacoesPorINEPUmAUm(ineps []string) (map[string]*Importacao
 		return nil, err
 	}
 	return out, nil
+}
+
+// OSPsPorIDs traz as OSPs desses IDs, em lote e paginado como as demais buscas.
+func (c *Client) OSPsPorIDs(ids []string) (map[string]OSP, error) {
+	return loadByIDs(ids,
+		func(part []string) ([]OSP, error) {
+			rows, _, err := c.ListOSPs(DefaultPageSize, 0, ConstraintsIDs(part))
+			return rows, err
+		},
+		c.GetOSP,
+		func(row OSP) string { return row.ID },
+	)
+}
+
+// ImportacoesDoMes traz as importações de escola com data_relatorio dentro do mês civil.
+func (c *Client) ImportacoesDoMes(mes time.Time) ([]ImportacaoEscola, error) {
+	cons := ConstraintsImportacaoMes(mes)
+	out := make([]ImportacaoEscola, 0)
+	cursor := 0
+	for {
+		rows, page, err := c.ListImportacoesEscola(DefaultPageSize, cursor, cons)
+		if err != nil {
+			return nil, fmt.Errorf("importações do mês %s: %w", mes.Format("2006-01"), err)
+		}
+		out = append(out, rows...)
+		if len(rows) == 0 || page.Remaining == 0 {
+			return out, nil
+		}
+		cursor += len(rows)
+	}
+}
+
+// FolhasPorINEPs traz as Folhas de Registro cujo INEP (o da folha) está na lista,
+// em chunks paralelos e paginados, com o mesmo fallback de ImportacoesPorINEPs.
+func (c *Client) FolhasPorINEPs(ineps []string) ([]FolhaOSP, error) {
+	ineps = uniqueNonEmpty(ineps)
+	if len(ineps) == 0 {
+		return nil, nil
+	}
+
+	parts := chunks(ineps, DefaultPageSize)
+	var mu sync.Mutex
+	porID := make(map[string]FolhaOSP)
+	err := parallelDo(len(parts), puxarWorkers, func(i int) error {
+		return c.coletaFolhasPorINEPs(parts[i], &mu, porID)
+	})
+	if err != nil {
+		porID = make(map[string]FolhaOSP)
+		err = parallelDo(len(ineps), puxarWorkers, func(i int) error {
+			if err := c.coletaFolhasPorINEPs(ineps[i:i+1], &mu, porID); err != nil {
+				return fmt.Errorf("fr_osp INEP %s: %w", ineps[i], err)
+			}
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	out := make([]FolhaOSP, 0, len(porID))
+	for _, folha := range porID {
+		out = append(out, folha)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	return out, nil
+}
+
+func (c *Client) coletaFolhasPorINEPs(ineps []string, mu *sync.Mutex, porID map[string]FolhaOSP) error {
+	cons := ConstraintsFolhasINEPs(ineps)
+	cursor := 0
+	for {
+		rows, page, err := c.ListFolhasOSPConstrained(DefaultPageSize, cursor, cons)
+		if err != nil {
+			return err
+		}
+		mu.Lock()
+		for _, row := range rows {
+			if id := strings.TrimSpace(row.ID); id != "" {
+				porID[id] = row
+			}
+		}
+		mu.Unlock()
+		if len(rows) == 0 || page.Remaining == 0 {
+			return nil
+		}
+		cursor += len(rows)
+	}
 }
 
 func loadByIDs[T any](

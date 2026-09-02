@@ -1,0 +1,129 @@
+package bubble
+
+import (
+	"log"
+	"strings"
+	"time"
+
+	"github.com/wellington/pcp_processamento/internal/domain"
+)
+
+// FonteBusca é a porta de busca no Bubble que a montagem do mês precisa.
+// O Client a satisfaz; testes de comportamento usam uma fonte em memória.
+type FonteBusca interface {
+	// OSPsDoMes traz as OSPs com Previsão de entrega no mês, status ≠ Reprovado.
+	OSPsDoMes(mes time.Time) ([]OSP, error)
+	// OSPsPorIDs traz as OSPs desses IDs.
+	OSPsPorIDs(ids []string) (map[string]OSP, error)
+	// ImportacoesDoMes traz as importações de escola com data_relatorio no mês.
+	ImportacoesDoMes(mes time.Time) ([]ImportacaoEscola, error)
+	// FolhasPorIDs traz as Folhas de Registro desses IDs.
+	FolhasPorIDs(ids []string) (map[string]FolhaOSP, error)
+	// FolhasPorINEPs traz as Folhas de Registro cujo INEP (o da folha) está na lista.
+	FolhasPorINEPs(ineps []string) ([]FolhaOSP, error)
+	// ContratosPorIDs traz os contratos de instalação desses IDs.
+	ContratosPorIDs(ids []string) (map[string]ContratoInstalacao, error)
+	// EscolasPorIDs traz as escolas desses IDs.
+	EscolasPorIDs(ids []string) (map[string]Escola, error)
+	// ImportacoesPorINEPs traz, por INEP, a importação de data_relatorio mais recente.
+	ImportacoesPorINEPs(ineps []string) (map[string]*ImportacaoEscola, error)
+}
+
+// MontarMes monta o Programado do mês civil sobre a porta de busca, sem falar HTTP.
+func MontarMes(fonte FonteBusca, mes time.Time) (Puxado, error) {
+	osps, err := fonte.OSPsDoMes(mes)
+	if err != nil {
+		return Puxado{}, err
+	}
+
+	frIDs := make([]string, 0)
+	for _, osp := range osps {
+		frIDs = append(frIDs, osp.FRs...)
+	}
+	log.Printf("puxar: %d OSPs, %d folhas; buscando em lote", len(osps), len(uniqueNonEmpty(frIDs)))
+
+	folhas, err := fonte.FolhasPorIDs(frIDs)
+	if err != nil {
+		return Puxado{}, err
+	}
+
+	var contratoIDs, escolaIDs []string
+	for _, folha := range folhas {
+		contratoIDs = append(contratoIDs, folha.ListaContratosInstalacao...)
+		if id := strings.TrimSpace(folha.EscolaID); id != "" {
+			escolaIDs = append(escolaIDs, id)
+		}
+	}
+	contratos, err := fonte.ContratosPorIDs(contratoIDs)
+	if err != nil {
+		return Puxado{}, err
+	}
+	escolas, err := fonte.EscolasPorIDs(escolaIDs)
+	if err != nil {
+		return Puxado{}, err
+	}
+
+	var ineps []string
+	for _, esc := range escolas {
+		if EscolaConectada(&esc) {
+			if inep := strings.TrimSpace(esc.INEP); inep != "" {
+				ineps = append(ineps, inep)
+			}
+		}
+	}
+	// Folha INEP can differ from escola INEP; still look up by folha INEP when connected.
+	for _, folha := range folhas {
+		esc, ok := escolas[strings.TrimSpace(folha.EscolaID)]
+		if !ok {
+			continue
+		}
+		if EscolaConectada(&esc) {
+			if inep := strings.TrimSpace(folha.INEP); inep != "" {
+				ineps = append(ineps, inep)
+			}
+		}
+	}
+	imps, err := fonte.ImportacoesPorINEPs(ineps)
+	if err != nil {
+		return Puxado{}, err
+	}
+
+	out := Puxado{Itens: make([]domain.ItemCarga, 0), Skips: make([]PuxarSkip, 0)}
+	for _, osp := range osps {
+		for _, fid := range osp.FRs {
+			fid = strings.TrimSpace(fid)
+			if fid == "" {
+				continue
+			}
+			folha, ok := folhas[fid]
+			if !ok {
+				out.Skips = append(out.Skips, PuxarSkip{OSPID: osp.ID, FolhaID: fid, Motivo: "folha não encontrada"})
+				continue
+			}
+			folhaContratos := map[string]ContratoInstalacao{}
+			for _, cid := range folha.ListaContratosInstalacao {
+				if ct, ok := contratos[strings.TrimSpace(cid)]; ok {
+					folhaContratos[cid] = ct
+				}
+			}
+			var escola *Escola
+			if id := strings.TrimSpace(folha.EscolaID); id != "" {
+				if esc, ok := escolas[id]; ok {
+					escola = &esc
+				}
+			}
+			inep := strings.TrimSpace(folha.INEP)
+			var imp *ImportacaoEscola
+			if EscolaConectada(escola) && inep != "" {
+				imp = imps[inep]
+			}
+			item, skip := ProgramadoDaFolha(osp, folha, escola, folhaContratos, imp)
+			if skip != "" {
+				out.Skips = append(out.Skips, PuxarSkip{OSPID: osp.ID, FolhaID: folha.ID, INEP: inep, Motivo: skip})
+				continue
+			}
+			out.Itens = append(out.Itens, item)
+		}
+	}
+	return out, nil
+}

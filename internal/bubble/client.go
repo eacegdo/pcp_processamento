@@ -253,6 +253,14 @@ func (c *Client) GetFolhaOSP(id string) (FolhaOSP, error) {
 	return row, nil
 }
 
+func (c *Client) GetOSP(id string) (OSP, error) {
+	var row OSP
+	if err := c.getObj(TypeOSP, id, &row); err != nil {
+		return OSP{}, err
+	}
+	return row, nil
+}
+
 func (c *Client) GetContrato(id string) (ContratoInstalacao, error) {
 	var row ContratoInstalacao
 	if err := c.getObj(TypeContrato, id, &row); err != nil {
