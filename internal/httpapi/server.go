@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"log"
 	"net/http"
 
 	"github.com/wellington/pcp_processamento/internal/bubble"
@@ -193,6 +194,7 @@ func (s *Server) handlePuxarProgramado(rw http.ResponseWriter, req *http.Request
 	}
 
 	amb, _ := bubble.Ambiente(body.Env)
+	log.Printf("puxar %s env=%s: %s; %d itens, %d skips", mes.Format("2006-01"), amb, got.Resumo, len(items), len(got.Skips))
 	fileName := "puxar-" + mes.Format("2006-01") + "-" + amb + ".json"
 	job, err := s.jobs.Create(len(items), domain.TipoProgramado, fileName, items)
 	if err != nil {
@@ -208,12 +210,6 @@ func (s *Server) handlePuxarProgramado(rw http.ResponseWriter, req *http.Request
 		"itens":  len(items),
 		"skips":  len(got.Skips),
 		"origem": origem,
-		"resumo": map[string]int{
-			"osps_por_previsao": got.Resumo.OSPsPorPrevisao,
-			"osps_por_conexao":  got.Resumo.OSPsPorConexao,
-			"osps_unicas":       got.Resumo.OSPsUnicas,
-			"itens_fora_do_mes": got.Resumo.ItensForaDoMes,
-		},
 	})
 }
 

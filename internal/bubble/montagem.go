@@ -35,7 +35,7 @@ func MontarMes(fonte FonteBusca, mes time.Time) (Puxado, error) {
 	if err != nil {
 		return Puxado{}, err
 	}
-	ospsConexao, err := ospsDasConexoesDoMes(fonte, mes)
+	ospsConexao, skipsConexao, err := ospsDasConexoesDoMes(fonte, mes)
 	if err != nil {
 		return Puxado{}, err
 	}
@@ -98,7 +98,7 @@ func MontarMes(fonte FonteBusca, mes time.Time) (Puxado, error) {
 		return Puxado{}, err
 	}
 
-	out := Puxado{Itens: make([]domain.ItemCarga, 0), Skips: make([]PuxarSkip, 0), Resumo: resumo}
+	out := Puxado{Itens: make([]domain.ItemCarga, 0), Skips: skipsConexao, Resumo: resumo}
 	for _, osp := range osps {
 		for _, fid := range osp.FRs {
 			fid = strings.TrimSpace(fid)
@@ -107,7 +107,7 @@ func MontarMes(fonte FonteBusca, mes time.Time) (Puxado, error) {
 			}
 			folha, ok := folhas[fid]
 			if !ok {
-				out.Skips = append(out.Skips, PuxarSkip{OSPID: osp.ID, FolhaID: fid, Motivo: "folha não encontrada"})
+				out.Skips = append(out.Skips, PuxarSkip{OSPID: osp.ID, FolhaID: fid, Motivo: SkipSemFolha})
 				continue
 			}
 			folhaContratos := map[string]ContratoInstalacao{}
@@ -148,10 +148,13 @@ func MontarMes(fonte FonteBusca, mes time.Time) (Puxado, error) {
 
 // ospsDasConexoesDoMes percorre o caminho novo: importações com data_relatorio no
 // mês → INEPs distintos → Folhas de Registro desses INEPs → as OSPs dessas folhas.
-func ospsDasConexoesDoMes(fonte FonteBusca, mes time.Time) ([]OSP, error) {
+// A OSP Reprovada alcançada por aqui é descartada da união e sai como skip, para
+// não inflar o resumo nem gerar skip para cada folha irmã dela.
+func ospsDasConexoesDoMes(fonte FonteBusca, mes time.Time) ([]OSP, []PuxarSkip, error) {
+	skips := make([]PuxarSkip, 0)
 	imps, err := fonte.ImportacoesDoMes(mes)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	var ineps []string
@@ -164,12 +167,12 @@ func ospsDasConexoesDoMes(fonte FonteBusca, mes time.Time) ([]OSP, error) {
 	}
 	ineps = uniqueNonEmpty(ineps)
 	if len(ineps) == 0 {
-		return nil, nil
+		return nil, skips, nil
 	}
 
 	folhas, err := fonte.FolhasPorINEPs(ineps)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	var ospIDs []string
 	for _, folha := range folhas {
@@ -177,20 +180,34 @@ func ospsDasConexoesDoMes(fonte FonteBusca, mes time.Time) ([]OSP, error) {
 	}
 	ospIDs = uniqueNonEmpty(ospIDs)
 	if len(ospIDs) == 0 {
-		return nil, nil
+		return nil, skips, nil
 	}
 
 	porID, err := fonte.OSPsPorIDs(ospIDs)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
+	}
+	for _, folha := range folhas {
+		osp, ok := porID[strings.TrimSpace(folha.OSPID)]
+		if !ok || OSPNaoReprovada(osp) {
+			continue
+		}
+		skips = append(skips, PuxarSkip{
+			OSPID:   osp.ID,
+			FolhaID: folha.ID,
+			INEP:    strings.TrimSpace(folha.INEP),
+			Motivo:  SkipOSPReprovada,
+		})
 	}
 	out := make([]OSP, 0, len(porID))
 	for _, id := range ospIDs {
-		if osp, ok := porID[id]; ok {
-			out = append(out, osp)
+		osp, ok := porID[id]
+		if !ok || !OSPNaoReprovada(osp) {
+			continue
 		}
+		out = append(out, osp)
 	}
-	return out, nil
+	return out, skips, nil
 }
 
 // unirOSPs junta os dois caminhos sem duplicar por _id, mantendo a ordem

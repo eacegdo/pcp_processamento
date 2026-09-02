@@ -270,3 +270,54 @@ func TestPuxarMesCaminhoDeConexaoBateNosEndpoints(t *testing.T) {
 		t.Fatalf("folhas por INEP = %d, osps por id = %d", folhasPorINEP, ospsPorID)
 	}
 }
+
+func TestFolhasPorINEPsPaginaEDedupPorID(t *testing.T) {
+	var chamadas int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/obj/fr_osp" {
+			t.Fatalf("path = %s", r.URL.Path)
+		}
+		if cons := r.URL.Query().Get("constraints"); !strings.Contains(cons, `"INEP"`) {
+			t.Fatalf("constraints = %s", cons)
+		}
+		chamadas++
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Query().Get("cursor") == "0" {
+			// primeira página avisa que ainda falta uma
+			_, _ = io.WriteString(w, `{"response":{"cursor":0,"remaining":1,"results":[
+			  {"_id":"fr1","INEP":"1"}
+			]}}`)
+			return
+		}
+		_, _ = io.WriteString(w, `{"response":{"cursor":1,"remaining":0,"results":[
+		  {"_id":"fr2","INEP":"2"},
+		  {"_id":"fr1","INEP":"1"}
+		]}}`)
+	}))
+	t.Cleanup(srv.Close)
+
+	c := bubble.NewClient(srv.URL, "tok", srv.Client())
+	got, err := c.FolhasPorINEPs([]string{"1", "2", "2", " "})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if chamadas < 2 {
+		t.Fatalf("chamadas = %d, quer paginar", chamadas)
+	}
+	if len(got) != 2 || got[0].ID != "fr1" || got[1].ID != "fr2" {
+		t.Fatalf("%+v", got)
+	}
+}
+
+func TestFolhasPorINEPsListaVaziaNaoConsultaOBubble(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatalf("consultou %s com lista vazia", r.URL)
+	}))
+	t.Cleanup(srv.Close)
+
+	c := bubble.NewClient(srv.URL, "tok", srv.Client())
+	got, err := c.FolhasPorINEPs(nil)
+	if err != nil || len(got) != 0 {
+		t.Fatalf("got=%+v err=%v", got, err)
+	}
+}

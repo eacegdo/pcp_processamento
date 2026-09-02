@@ -28,6 +28,14 @@ _Avoid_: realizado, programado, meta genérica
 Escola associada a OSP válida, com INEP preenchido, enviada pelo Bubble como JSON já montado. Grava-se no mesmo Registro PCP. A Carga de Planejamento não traz Programado. A busca no Bubble pode partir de Folha de Registro; o que este contexto persiste é o Programado, não a FR.
 _Avoid_: previsão avulsa, OSP (como se fosse o registro), FR (como se fosse o Registro PCP)
 
+**Data do Programado**:
+Data que vai para o Registro PCP de um Programado: a data de conexão (`data_relatorio` da Importação de Escola) quando a Escola está Conectada e essa data existe; senão a Previsão de entrega da OSP. É ela que decide a qual mês o Programado pertence — não a previsão de entrega.
+_Avoid_: previsão de entrega (como se fosse sempre a data), data da OSP, data da folha
+
+**Importação de Escola**:
+Registro de conexão de uma Escola, por INEP, com a data de conexão em `data_relatorio`. Vale a de `data_relatorio` mais recente. Puxar o mês parte também dela: quem conectou no mês entra no mês, mesmo com Folha de Registro de mês anterior.
+_Avoid_: importação de carga, upload, sync
+
 **Carga de Planejamento**:
 Conjunto de linhas de Planejado recebido de uma vez para ser aplicado. Cada linha traz data (`DD/MM/AAAA`), Fase PCP, Regional PCP (sigla), nome do fornecedor (opcional), CNPJ (obrigatório) e Quantidade Planejada. Não traz Programado, INEP nem UF. Data em outro formato ou vazia invalida a linha.
 _Avoid_: upload, arquivo, import, Lote OCE

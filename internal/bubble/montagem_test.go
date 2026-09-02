@@ -424,16 +424,21 @@ func TestMontarMesConexaoPassaPelosMesmosFiltros(t *testing.T) {
 			{ID: "ospRep", Status: bubble.StatusReprovado, PrevisaoEntrega: "2026-07-10T17:44:00.000Z", FRs: []string{"frRep"}},
 			{ID: "ospSemKit", Status: "Nota Fiscal", PrevisaoEntrega: "2026-07-10T17:44:00.000Z", FRs: []string{"frSemKit"}},
 			{ID: "ospSemFase", Status: "Nota Fiscal", PrevisaoEntrega: "2026-07-10T17:44:00.000Z", FRs: []string{"frSemFase"}},
+			{ID: "ospSemReg", Status: "Nota Fiscal", PrevisaoEntrega: "2026-07-10T17:44:00.000Z", FRs: []string{"frSemReg", "frSemINEP"}},
 		},
 		folhas: []bubble.FolhaOSP{
 			{ID: "frRep", INEP: "rep", EscolaID: "eRep", OSPID: "ospRep", ListaContratosInstalacao: []string{"c1"}},
 			{ID: "frSemKit", INEP: "semkit", EscolaID: "eSemKit", OSPID: "ospSemKit", ListaContratosInstalacao: []string{"cOutro"}},
 			{ID: "frSemFase", INEP: "semfase", EscolaID: "eSemFase", OSPID: "ospSemFase", ListaContratosInstalacao: []string{"c1"}},
+			{ID: "frSemReg", INEP: "semreg", EscolaID: "eSemReg", OSPID: "ospSemReg", ListaContratosInstalacao: []string{"c1"}},
+			// folha irmã da mesma OSP, alcançada só por ela: INEP vazio
+			{ID: "frSemINEP", INEP: "", EscolaID: "eSemReg", OSPID: "ospSemReg", ListaContratosInstalacao: []string{"c1"}},
 		},
 		escolas: []bubble.Escola{
 			escolaOK("eRep", "rep", bubble.StatusConectada),
 			escolaOK("eSemKit", "semkit", bubble.StatusConectada),
 			{ID: "eSemFase", INEP: "semfase", UF: "PA", Regional: "Norte", StatusGeral: bubble.StatusConectada},
+			{ID: "eSemReg", INEP: "semreg", UF: "PA", Fase: "3", StatusGeral: bubble.StatusConectada},
 		},
 		contratos: []bubble.ContratoInstalacao{
 			kitRI("c1"),
@@ -443,6 +448,7 @@ func TestMontarMesConexaoPassaPelosMesmosFiltros(t *testing.T) {
 			{ID: "i1", INEP: "rep", DataRelatorio: "2026-08-05T10:00:00.000Z"},
 			{ID: "i2", INEP: "semkit", DataRelatorio: "2026-08-05T10:00:00.000Z"},
 			{ID: "i3", INEP: "semfase", DataRelatorio: "2026-08-05T10:00:00.000Z"},
+			{ID: "i4", INEP: "semreg", DataRelatorio: "2026-08-05T10:00:00.000Z"},
 		},
 	}
 	got, err := bubble.MontarMes(f, agosto)
@@ -456,11 +462,17 @@ func TestMontarMesConexaoPassaPelosMesmosFiltros(t *testing.T) {
 		"rep":     bubble.SkipOSPReprovada,
 		"semkit":  bubble.SkipSemKitRI,
 		"semfase": bubble.SkipSemFase,
+		"semreg":  bubble.SkipSemRegional,
+		"":        bubble.SkipSemINEP,
 	}
 	for inep, motivo := range quer {
 		if m := skipDe(t, got, inep); m != motivo {
 			t.Fatalf("inep %q: motivo = %q, quer %q", inep, m, motivo)
 		}
+	}
+	// A OSP Reprovada não conta como OSP trazida pela conexão.
+	if got.Resumo.OSPsPorConexao != 3 {
+		t.Fatalf("osps por conexão = %d, quer 3 (a Reprovada é descartada)", got.Resumo.OSPsPorConexao)
 	}
 }
 

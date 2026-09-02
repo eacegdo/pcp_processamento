@@ -215,7 +215,7 @@ Em cada Folha de Registro:
 6. Fase, regional, UF, INEP e fornecedor RI vêm da **escola**
 7. **Filtro final:** item cuja Data do Programado cai fora do mês pedido vira skip `data do Programado fora do mês` — vale para os dois caminhos
 
-Por isso puxar um mês pode **remover** dele Registros que estavam lá com data de outro mês (o Espelho do Mês substitui o mês civil). Vale puxar em seguida o mês da conexão para reancorar esses Registros. O log e a resposta de `POST /v1/programado/puxar` trazem o resumo por origem (previsão, conexão, após dedupe, itens fora do mês).
+Por isso puxar um mês pode **remover** dele Registros que estavam lá com data de outro mês (o Espelho do Mês substitui o mês civil). Vale puxar em seguida o mês da conexão para reancorar esses Registros. O log do puxar (CLI e servidor) traz o resumo por origem: OSPs por previsão, por conexão, OSPs únicas e itens fora do mês.
 
 MIP não entra. Folhas que não passam nas regras aparecem no log como `skip` (sem INEP, sem kit RI, escola sem fase, etc.) e não vão para o JSON.
 

@@ -283,6 +283,8 @@ Resposta `201`:
 
 `origem` é `version-test` ou `live` e vai para `pcp`. Sem token daquele ambiente: `503`.
 
+O mês é recortado pela **Data do Programado** (data de conexão quando a Escola está `Conectada`, senão previsão de entrega da OSP), e o puxar busca por dois caminhos: OSPs com previsão no mês e escolas que conectaram no mês. O resumo por origem (quantas OSPs de cada caminho, quantas após a união, quantos itens fora do mês) sai no **log** do servidor, não na resposta.
+
 ---
 
 ## Erros

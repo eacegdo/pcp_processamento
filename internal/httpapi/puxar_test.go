@@ -109,17 +109,13 @@ func TestPuxarProgramadoItemSoPorConexao(t *testing.T) {
 		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
 	}
 	var resp struct {
-		ID     string `json:"id"`
-		Itens  int    `json:"itens"`
-		Resumo struct {
-			PorPrevisao int `json:"osps_por_previsao"`
-			PorConexao  int `json:"osps_por_conexao"`
-		} `json:"resumo"`
+		ID    string `json:"id"`
+		Itens int    `json:"itens"`
 	}
 	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
 		t.Fatal(err)
 	}
-	if resp.Itens != 1 || resp.Resumo.PorPrevisao != 0 || resp.Resumo.PorConexao != 1 {
+	if resp.Itens != 1 {
 		t.Fatalf("%+v", resp)
 	}
 	drain(w)
@@ -134,6 +130,26 @@ func TestPuxarProgramadoItemSoPorConexao(t *testing.T) {
 	job, _ := jobs.Get(resp.ID)
 	if job.Status != "success" {
 		t.Fatalf("job = %+v", job)
+	}
+}
+
+// Test e live se comportam igual pelo caminho de conexão; só a origem muda.
+func TestPuxarProgramadoPorConexaoEmLiveGravaOrigemLive(t *testing.T) {
+	bubbleSrv := fakeBubbleSoConexao(t)
+	pcp := memory.NewPcpStore()
+	jobs := memory.NewJobStore()
+	w := worker.New(jobs, pcp, worker.Config{BatchSize: 200, MaxRetries: 3})
+	srv := httpapi.NewServer(testAPIKey, jobs).WithBubbleEnv("live", bubble.NewClient(bubbleSrv.URL, "tok", bubbleSrv.Client()))
+
+	rec := postPuxar(t, srv, `{"mes":"2026-08","env":"live"}`)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	drain(w)
+
+	got, ok := pcp.GetProgramado(dia(2026, 8, 5), "15026868")
+	if !ok || got.Origem != "live" {
+		t.Fatalf("ok=%v origem=%q", ok, got.Origem)
 	}
 }
 

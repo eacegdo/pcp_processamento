@@ -35,7 +35,7 @@ type PuxarResumo struct {
 }
 
 func (r PuxarResumo) String() string {
-	return fmt.Sprintf("%d OSPs por previsão, %d por conexão, %d após dedupe, %d itens fora do mês",
+	return fmt.Sprintf("%d OSPs por previsão, %d por conexão, %d OSPs únicas, %d itens fora do mês",
 		r.OSPsPorPrevisao, r.OSPsPorConexao, r.OSPsUnicas, r.ItensForaDoMes)
 }
 
@@ -170,25 +170,20 @@ func (c *Client) ImportacoesPorINEPs(ineps []string) (map[string]*ImportacaoEsco
 	var mu sync.Mutex
 	err := parallelDo(len(parts), puxarWorkers, func(i int) error {
 		cons := ConstraintsINEPs(parts[i])
-		cursor := 0
-		for {
-			rows, page, err := c.ListImportacoesEscola(DefaultPageSize, cursor, cons)
-			if err != nil {
-				return err
+		rows, err := paginado(func(cursor int) ([]ImportacaoEscola, Page, error) {
+			return c.ListImportacoesEscola(DefaultPageSize, cursor, cons)
+		})
+		if err != nil {
+			return err
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		for _, row := range rows {
+			k := strings.TrimSpace(row.INEP)
+			if k == "" {
+				continue
 			}
-			mu.Lock()
-			for _, row := range rows {
-				k := strings.TrimSpace(row.INEP)
-				if k == "" {
-					continue
-				}
-				grouped[k] = append(grouped[k], row)
-			}
-			mu.Unlock()
-			if len(rows) == 0 || page.Remaining == 0 {
-				break
-			}
-			cursor += len(rows)
+			grouped[k] = append(grouped[k], row)
 		}
 		return nil
 	})
@@ -235,19 +230,13 @@ func (c *Client) OSPsPorIDs(ids []string) (map[string]OSP, error) {
 // ImportacoesDoMes traz as importações de escola com data_relatorio dentro do mês civil.
 func (c *Client) ImportacoesDoMes(mes time.Time) ([]ImportacaoEscola, error) {
 	cons := ConstraintsImportacaoMes(mes)
-	out := make([]ImportacaoEscola, 0)
-	cursor := 0
-	for {
-		rows, page, err := c.ListImportacoesEscola(DefaultPageSize, cursor, cons)
-		if err != nil {
-			return nil, fmt.Errorf("importações do mês %s: %w", mes.Format("2006-01"), err)
-		}
-		out = append(out, rows...)
-		if len(rows) == 0 || page.Remaining == 0 {
-			return out, nil
-		}
-		cursor += len(rows)
+	out, err := paginado(func(cursor int) ([]ImportacaoEscola, Page, error) {
+		return c.ListImportacoesEscola(DefaultPageSize, cursor, cons)
+	})
+	if err != nil {
+		return nil, fmt.Errorf("importações do mês %s: %w", mes.Format("2006-01"), err)
 	}
+	return out, nil
 }
 
 // FolhasPorINEPs traz as Folhas de Registro cujo INEP (o da folha) está na lista,
@@ -287,21 +276,34 @@ func (c *Client) FolhasPorINEPs(ineps []string) ([]FolhaOSP, error) {
 
 func (c *Client) coletaFolhasPorINEPs(ineps []string, mu *sync.Mutex, porID map[string]FolhaOSP) error {
 	cons := ConstraintsFolhasINEPs(ineps)
+	rows, err := paginado(func(cursor int) ([]FolhaOSP, Page, error) {
+		return c.ListFolhasOSPConstrained(DefaultPageSize, cursor, cons)
+	})
+	if err != nil {
+		return err
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	for _, row := range rows {
+		if id := strings.TrimSpace(row.ID); id != "" {
+			porID[id] = row
+		}
+	}
+	return nil
+}
+
+// paginado percorre o cursor da Data API até acabar, juntando as páginas.
+func paginado[T any](fetch func(cursor int) ([]T, Page, error)) ([]T, error) {
+	out := make([]T, 0)
 	cursor := 0
 	for {
-		rows, page, err := c.ListFolhasOSPConstrained(DefaultPageSize, cursor, cons)
+		rows, page, err := fetch(cursor)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		mu.Lock()
-		for _, row := range rows {
-			if id := strings.TrimSpace(row.ID); id != "" {
-				porID[id] = row
-			}
-		}
-		mu.Unlock()
+		out = append(out, rows...)
 		if len(rows) == 0 || page.Remaining == 0 {
-			return nil
+			return out, nil
 		}
 		cursor += len(rows)
 	}

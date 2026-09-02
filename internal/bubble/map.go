@@ -35,6 +35,7 @@ const (
 	SkipForaDoMes    MotivoSkip = "data do Programado fora do mês"
 	SkipSemPrevisao  MotivoSkip = "OSP sem previsão de entrega"
 	SkipSemKitRI     MotivoSkip = "folha sem contrato kit de implantação de rede interna"
+	SkipSemFolha     MotivoSkip = "folha não encontrada"
 )
 
 func resolveRegional(s string) (sigla, nome string) {
@@ -156,26 +157,25 @@ func MesCivil(s string) (time.Time, error) {
 
 // ConstraintsOSPMes is the Data API constraint JSON: previsão no mês e status ≠ Reprovado.
 func ConstraintsOSPMes(mes time.Time) string {
-	ini := time.Date(mes.Year(), mes.Month(), 1, 0, 0, 0, 0, locBR())
-	fim := ini.AddDate(0, 1, 0)
-	cons := []map[string]string{
-		{"key": "Previsão de entrega", "constraint_type": "greater than", "value": ini.UTC().Add(-time.Second).Format("2006-01-02T15:04:05.000Z")},
-		{"key": "Previsão de entrega", "constraint_type": "less than", "value": fim.UTC().Format("2006-01-02T15:04:05.000Z")},
-		{"key": "status", "constraint_type": "not equal", "value": StatusReprovado},
-	}
+	cons := append(constraintsCampoNoMes("Previsão de entrega", mes),
+		map[string]string{"key": "status", "constraint_type": "not equal", "value": StatusReprovado})
 	b, _ := json.Marshal(cons)
 	return string(b)
 }
 
-// ConstraintsImportacaoMes is the Data API constraint JSON: data_relatorio dentro do mês civil.
-func ConstraintsImportacaoMes(mes time.Time) string {
+// constraintsCampoNoMes recorta um campo de data no mês civil em America/Sao_Paulo.
+func constraintsCampoNoMes(campo string, mes time.Time) []map[string]string {
 	ini := time.Date(mes.Year(), mes.Month(), 1, 0, 0, 0, 0, locBR())
 	fim := ini.AddDate(0, 1, 0)
-	cons := []map[string]string{
-		{"key": "data_relatorio", "constraint_type": "greater than", "value": ini.UTC().Add(-time.Second).Format("2006-01-02T15:04:05.000Z")},
-		{"key": "data_relatorio", "constraint_type": "less than", "value": fim.UTC().Format("2006-01-02T15:04:05.000Z")},
+	return []map[string]string{
+		{"key": campo, "constraint_type": "greater than", "value": ini.UTC().Add(-time.Second).Format("2006-01-02T15:04:05.000Z")},
+		{"key": campo, "constraint_type": "less than", "value": fim.UTC().Format("2006-01-02T15:04:05.000Z")},
 	}
-	b, _ := json.Marshal(cons)
+}
+
+// ConstraintsImportacaoMes is the Data API constraint JSON: data_relatorio dentro do mês civil.
+func ConstraintsImportacaoMes(mes time.Time) string {
+	b, _ := json.Marshal(constraintsCampoNoMes("data_relatorio", mes))
 	return string(b)
 }
 
