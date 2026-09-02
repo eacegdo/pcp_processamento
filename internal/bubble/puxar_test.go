@@ -143,6 +143,8 @@ func TestPuxarMesListaFolhasEmLote(t *testing.T) {
 			_, _ = io.WriteString(w, `{"response":{"cursor":0,"remaining":0,"results":[
 			  {"_id":"e1","INEP":"1","UF":"PA","FASE":"3","Regional":"Norte","Status Geral":"Em planejamento","fornecedor_ri":"Q13"}
 			]}}`)
+		case strings.Contains(r.URL.Path, "import"):
+			_, _ = io.WriteString(w, `{"response":{"cursor":0,"remaining":0,"results":[]}}`)
 		default:
 			http.NotFound(w, r)
 		}
@@ -193,5 +195,78 @@ func TestEncodeProgramadoJSONFormatoPCP(t *testing.T) {
 	}
 	if rows[0]["origem"] != "version-test" {
 		t.Fatalf("origem = %v", rows[0]["origem"])
+	}
+}
+
+// Fiação: o Client satisfaz a porta de busca e o caminho de conexão bate nos
+// endpoints certos — importação_escola por mês, fr_osp por INEP da folha, osp por _id.
+func TestPuxarMesCaminhoDeConexaoBateNosEndpoints(t *testing.T) {
+	var folhasPorINEP, ospsPorID int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		cons := r.URL.Query().Get("constraints")
+		switch {
+		case r.URL.Path == "/obj/osp" && strings.Contains(cons, "Previsão de entrega"):
+			_, _ = io.WriteString(w, `{"response":{"cursor":0,"remaining":0,"results":[]}}`)
+		case r.URL.Path == "/obj/osp":
+			ospsPorID++
+			if !strings.Contains(cons, `"_id"`) || !strings.Contains(cons, "osp1") {
+				t.Errorf("constraints de osp por id = %s", cons)
+			}
+			_, _ = io.WriteString(w, `{"response":{"cursor":0,"remaining":0,"results":[{
+			  "_id":"osp1","status":"Nota Fiscal","OSnum":13,
+			  "Previsão de entrega":"2026-07-10T17:44:00.000Z","FR":["fr1"]
+			}]}}`)
+		case strings.Contains(r.URL.Path, "import"):
+			if !strings.Contains(cons, "data_relatorio") && !strings.Contains(cons, "inep") {
+				t.Errorf("constraints de importação = %s", cons)
+			}
+			_, _ = io.WriteString(w, `{"response":{"cursor":0,"remaining":0,"results":[{
+			  "inep":"15026868","data_relatorio":"2026-08-05T17:55:00.000Z"
+			}]}}`)
+		case r.URL.Path == "/obj/fr_osp" && strings.Contains(cons, `"INEP"`):
+			folhasPorINEP++
+			_, _ = io.WriteString(w, `{"response":{"cursor":0,"remaining":0,"results":[{
+			  "_id":"fr1","INEP":"15026868","UF":"PA","Escola":"esc1","OSP":"osp1",
+			  "lista de contratos_instalação":["c1"]
+			}]}}`)
+		case r.URL.Path == "/obj/fr_osp":
+			_, _ = io.WriteString(w, `{"response":{"cursor":0,"remaining":0,"results":[{
+			  "_id":"fr1","INEP":"15026868","UF":"PA","Escola":"esc1","OSP":"osp1",
+			  "lista de contratos_instalação":["c1"]
+			}]}}`)
+		case r.URL.Path == "/obj/contrato_taxa_instalacao":
+			_, _ = io.WriteString(w, `{"response":{"cursor":0,"remaining":0,"results":[{
+			  "_id":"c1","Descrição":"Kit Cobertura Wi-Fi","Tipo de obra":"4-IMPLANTAÇÃO_DE_REDE_INTERNA"
+			}]}}`)
+		case r.URL.Path == "/obj/escolas":
+			_, _ = io.WriteString(w, `{"response":{"cursor":0,"remaining":0,"results":[{
+			  "_id":"esc1","INEP":"15026868","UF":"PA","FASE":"3","Regional":"Norte",
+			  "Status Geral":"Conectada","fornecedor_ri":"Q13 TECNOLOGIA",
+			  "cnpj_fornecedor_ri":"30.161.238/0001-60"
+			}]}}`)
+		default:
+			t.Errorf("path inesperado %s", r.URL.Path)
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	c := bubble.NewClient(srv.URL, "tok", srv.Client())
+	got, err := c.PuxarMes(time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Itens) != 1 {
+		t.Fatalf("itens=%d skips=%+v", len(got.Itens), got.Skips)
+	}
+	if d := got.Itens[0].Data.Format("2006-01-02"); d != "2026-08-05" {
+		t.Fatalf("data = %s", d)
+	}
+	if got.Itens[0].INEP != "15026868" {
+		t.Fatalf("%+v", got.Itens[0])
+	}
+	if folhasPorINEP == 0 || ospsPorID == 0 {
+		t.Fatalf("folhas por INEP = %d, osps por id = %d", folhasPorINEP, ospsPorID)
 	}
 }

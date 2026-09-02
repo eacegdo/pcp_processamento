@@ -168,6 +168,8 @@ func fakeBubblePuxar(t *testing.T) *httptest.Server {
 			    "cnpj_fornecedor_ri":"30.161.238/0001-60"
 			  }
 			}`)
+		case strings.Contains(r.URL.Path, "import"):
+			_, _ = io.WriteString(w, `{"response":{"cursor":0,"remaining":0,"results":[]}}`)
 		default:
 			t.Errorf("path inesperado %s", r.URL.Path)
 			http.NotFound(w, r)

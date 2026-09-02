@@ -31,16 +31,22 @@ type FonteBusca interface {
 
 // MontarMes monta o Programado do mês civil sobre a porta de busca, sem falar HTTP.
 func MontarMes(fonte FonteBusca, mes time.Time) (Puxado, error) {
-	osps, err := fonte.OSPsDoMes(mes)
+	ospsPrevisao, err := fonte.OSPsDoMes(mes)
 	if err != nil {
 		return Puxado{}, err
 	}
+	ospsConexao, err := ospsDasConexoesDoMes(fonte, mes)
+	if err != nil {
+		return Puxado{}, err
+	}
+	osps := unirOSPs(ospsPrevisao, ospsConexao)
 
 	frIDs := make([]string, 0)
 	for _, osp := range osps {
 		frIDs = append(frIDs, osp.FRs...)
 	}
-	log.Printf("puxar: %d OSPs, %d folhas; buscando em lote", len(osps), len(uniqueNonEmpty(frIDs)))
+	log.Printf("puxar: %d OSPs por previsão, %d por conexão, %d após dedupe; %d folhas; buscando em lote",
+		len(ospsPrevisao), len(ospsConexao), len(osps), len(uniqueNonEmpty(frIDs)))
 
 	folhas, err := fonte.FolhasPorIDs(frIDs)
 	if err != nil {
@@ -132,4 +138,72 @@ func MontarMes(fonte FonteBusca, mes time.Time) (Puxado, error) {
 		}
 	}
 	return out, nil
+}
+
+// ospsDasConexoesDoMes percorre o caminho novo: importações com data_relatorio no
+// mês → INEPs distintos → Folhas de Registro desses INEPs → as OSPs dessas folhas.
+func ospsDasConexoesDoMes(fonte FonteBusca, mes time.Time) ([]OSP, error) {
+	imps, err := fonte.ImportacoesDoMes(mes)
+	if err != nil {
+		return nil, err
+	}
+
+	var ineps []string
+	for _, imp := range imps {
+		d, ok := civilDate(imp.DataRelatorio)
+		if !ok || !DataNoMes(d, mes) {
+			continue
+		}
+		ineps = append(ineps, imp.INEP)
+	}
+	ineps = uniqueNonEmpty(ineps)
+	if len(ineps) == 0 {
+		return nil, nil
+	}
+
+	folhas, err := fonte.FolhasPorINEPs(ineps)
+	if err != nil {
+		return nil, err
+	}
+	var ospIDs []string
+	for _, folha := range folhas {
+		ospIDs = append(ospIDs, folha.OSPID)
+	}
+	ospIDs = uniqueNonEmpty(ospIDs)
+	if len(ospIDs) == 0 {
+		return nil, nil
+	}
+
+	porID, err := fonte.OSPsPorIDs(ospIDs)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]OSP, 0, len(porID))
+	for _, id := range ospIDs {
+		if osp, ok := porID[id]; ok {
+			out = append(out, osp)
+		}
+	}
+	return out, nil
+}
+
+// unirOSPs junta os dois caminhos sem duplicar por _id, mantendo a ordem
+// de previsão primeiro e depois conexão.
+func unirOSPs(previsao, conexao []OSP) []OSP {
+	out := make([]OSP, 0, len(previsao)+len(conexao))
+	vistos := make(map[string]struct{}, len(previsao)+len(conexao))
+	for _, grupo := range [][]OSP{previsao, conexao} {
+		for _, osp := range grupo {
+			id := strings.TrimSpace(osp.ID)
+			if id == "" {
+				continue
+			}
+			if _, ok := vistos[id]; ok {
+				continue
+			}
+			vistos[id] = struct{}{}
+			out = append(out, osp)
+		}
+	}
+	return out
 }

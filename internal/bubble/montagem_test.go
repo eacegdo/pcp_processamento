@@ -1,6 +1,7 @@
 package bubble_test
 
 import (
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -326,5 +327,183 @@ func TestMontarMesMantemItemComDataDentroDoMes(t *testing.T) {
 	}
 	if len(got.Itens) != 1 || got.Itens[0].Data.Format("2006-01-02") != "2026-08-31" {
 		t.Fatalf("itens = %+v skips = %+v", got.Itens, got.Skips)
+	}
+}
+
+func TestMontarMesFolhaDeMesAnteriorEntraPelaConexao(t *testing.T) {
+	// FR de julho (previsão em julho) cuja escola conectou em agosto.
+	f := &fonteFalsa{
+		osps:        []bubble.OSP{{ID: "osp1", Status: "Nota Fiscal", PrevisaoEntrega: "2026-07-10T17:44:00.000Z", FRs: []string{"fr1"}}},
+		folhas:      []bubble.FolhaOSP{{ID: "fr1", INEP: "1", EscolaID: "e1", OSPID: "osp1", ListaContratosInstalacao: []string{"c1"}}},
+		escolas:     []bubble.Escola{escolaOK("e1", "1", bubble.StatusConectada)},
+		contratos:   []bubble.ContratoInstalacao{kitRI("c1")},
+		importacoes: []bubble.ImportacaoEscola{{ID: "i1", INEP: "1", DataRelatorio: "2026-08-05T17:55:00.000Z"}},
+	}
+	got, err := bubble.MontarMes(f, agosto)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Itens) != 1 {
+		t.Fatalf("itens=%d skips=%+v", len(got.Itens), got.Skips)
+	}
+	if d := got.Itens[0].Data.Format("2006-01-02"); d != "2026-08-05" {
+		t.Fatalf("data = %s", d)
+	}
+	// E o mesmo dado puxado em julho não traz essa folha, porque a data é de agosto.
+	emJulho, err := bubble.MontarMes(f, julho)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(emJulho.Itens) != 0 {
+		t.Fatalf("julho = %+v", emJulho.Itens)
+	}
+}
+
+func TestMontarMesOSPNosDoisCaminhosGeraUmItem(t *testing.T) {
+	f := &fonteFalsa{
+		osps:        []bubble.OSP{{ID: "osp1", Status: "Nota Fiscal", PrevisaoEntrega: "2026-08-08T17:44:00.000Z", FRs: []string{"fr1"}}},
+		folhas:      []bubble.FolhaOSP{{ID: "fr1", INEP: "1", EscolaID: "e1", OSPID: "osp1", ListaContratosInstalacao: []string{"c1"}}},
+		escolas:     []bubble.Escola{escolaOK("e1", "1", bubble.StatusConectada)},
+		contratos:   []bubble.ContratoInstalacao{kitRI("c1")},
+		importacoes: []bubble.ImportacaoEscola{{ID: "i1", INEP: "1", DataRelatorio: "2026-08-20T17:55:00.000Z"}},
+	}
+	got, err := bubble.MontarMes(f, agosto)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Itens) != 1 {
+		t.Fatalf("itens=%d %+v", len(got.Itens), got.Itens)
+	}
+}
+
+func TestMontarMesDuasConexoesDoMesmoINEPNaMesmaDataGeramUmaLinha(t *testing.T) {
+	f := &fonteFalsa{
+		osps:      []bubble.OSP{{ID: "osp1", Status: "Nota Fiscal", PrevisaoEntrega: "2026-07-10T17:44:00.000Z", FRs: []string{"fr1"}}},
+		folhas:    []bubble.FolhaOSP{{ID: "fr1", INEP: "1", EscolaID: "e1", OSPID: "osp1", ListaContratosInstalacao: []string{"c1"}}},
+		escolas:   []bubble.Escola{escolaOK("e1", "1", bubble.StatusConectada)},
+		contratos: []bubble.ContratoInstalacao{kitRI("c1")},
+		importacoes: []bubble.ImportacaoEscola{
+			{ID: "i1", INEP: "1", DataRelatorio: "2026-08-05T10:00:00.000Z"},
+			{ID: "i2", INEP: "1", DataRelatorio: "2026-08-05T20:00:00.000Z"},
+		},
+	}
+	got, err := bubble.MontarMes(f, agosto)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Itens) != 1 || got.Itens[0].Data.Format("2006-01-02") != "2026-08-05" {
+		t.Fatalf("itens = %+v", got.Itens)
+	}
+}
+
+func TestMontarMesUsaImportacaoMaisRecente(t *testing.T) {
+	f := &fonteFalsa{
+		osps:      []bubble.OSP{{ID: "osp1", Status: "Nota Fiscal", PrevisaoEntrega: "2026-07-10T17:44:00.000Z", FRs: []string{"fr1"}}},
+		folhas:    []bubble.FolhaOSP{{ID: "fr1", INEP: "1", EscolaID: "e1", OSPID: "osp1", ListaContratosInstalacao: []string{"c1"}}},
+		escolas:   []bubble.Escola{escolaOK("e1", "1", bubble.StatusConectada)},
+		contratos: []bubble.ContratoInstalacao{kitRI("c1")},
+		importacoes: []bubble.ImportacaoEscola{
+			{ID: "i1", INEP: "1", DataRelatorio: "2026-08-05T10:00:00.000Z"},
+			{ID: "i2", INEP: "1", DataRelatorio: "2026-08-19T10:00:00.000Z"},
+		},
+	}
+	got, err := bubble.MontarMes(f, agosto)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Itens) != 1 || got.Itens[0].Data.Format("2006-01-02") != "2026-08-19" {
+		t.Fatalf("itens = %+v", got.Itens)
+	}
+}
+
+func TestMontarMesConexaoPassaPelosMesmosFiltros(t *testing.T) {
+	// Todas as folhas abaixo só são alcançadas pelo caminho de conexão:
+	// previsão de entrega em julho, conexão em agosto.
+	f := &fonteFalsa{
+		osps: []bubble.OSP{
+			{ID: "ospRep", Status: bubble.StatusReprovado, PrevisaoEntrega: "2026-07-10T17:44:00.000Z", FRs: []string{"frRep"}},
+			{ID: "ospSemKit", Status: "Nota Fiscal", PrevisaoEntrega: "2026-07-10T17:44:00.000Z", FRs: []string{"frSemKit"}},
+			{ID: "ospSemFase", Status: "Nota Fiscal", PrevisaoEntrega: "2026-07-10T17:44:00.000Z", FRs: []string{"frSemFase"}},
+		},
+		folhas: []bubble.FolhaOSP{
+			{ID: "frRep", INEP: "rep", EscolaID: "eRep", OSPID: "ospRep", ListaContratosInstalacao: []string{"c1"}},
+			{ID: "frSemKit", INEP: "semkit", EscolaID: "eSemKit", OSPID: "ospSemKit", ListaContratosInstalacao: []string{"cOutro"}},
+			{ID: "frSemFase", INEP: "semfase", EscolaID: "eSemFase", OSPID: "ospSemFase", ListaContratosInstalacao: []string{"c1"}},
+		},
+		escolas: []bubble.Escola{
+			escolaOK("eRep", "rep", bubble.StatusConectada),
+			escolaOK("eSemKit", "semkit", bubble.StatusConectada),
+			{ID: "eSemFase", INEP: "semfase", UF: "PA", Regional: "Norte", StatusGeral: bubble.StatusConectada},
+		},
+		contratos: []bubble.ContratoInstalacao{
+			kitRI("c1"),
+			{ID: "cOutro", Descricao: "Kit Rede Externa", TipoDeObra: "1-OUTRA"},
+		},
+		importacoes: []bubble.ImportacaoEscola{
+			{ID: "i1", INEP: "rep", DataRelatorio: "2026-08-05T10:00:00.000Z"},
+			{ID: "i2", INEP: "semkit", DataRelatorio: "2026-08-05T10:00:00.000Z"},
+			{ID: "i3", INEP: "semfase", DataRelatorio: "2026-08-05T10:00:00.000Z"},
+		},
+	}
+	got, err := bubble.MontarMes(f, agosto)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Itens) != 0 {
+		t.Fatalf("itens = %+v", got.Itens)
+	}
+	quer := map[string]bubble.MotivoSkip{
+		"rep":     bubble.SkipOSPReprovada,
+		"semkit":  bubble.SkipSemKitRI,
+		"semfase": bubble.SkipSemFase,
+	}
+	for inep, motivo := range quer {
+		if m := skipDe(t, got, inep); m != motivo {
+			t.Fatalf("inep %q: motivo = %q, quer %q", inep, m, motivo)
+		}
+	}
+}
+
+func TestMontarMesEscolaNaoConectadaSoEntraPelaPrevisao(t *testing.T) {
+	// Escola não Conectada com importação em agosto: a conexão não conta,
+	// e a previsão de julho mantém a folha fora de agosto.
+	f := &fonteFalsa{
+		osps:        []bubble.OSP{{ID: "osp1", Status: "Nota Fiscal", PrevisaoEntrega: "2026-07-10T17:44:00.000Z", FRs: []string{"fr1"}}},
+		folhas:      []bubble.FolhaOSP{{ID: "fr1", INEP: "1", EscolaID: "e1", OSPID: "osp1", ListaContratosInstalacao: []string{"c1"}}},
+		escolas:     []bubble.Escola{escolaOK("e1", "1", "Em planejamento")},
+		contratos:   []bubble.ContratoInstalacao{kitRI("c1")},
+		importacoes: []bubble.ImportacaoEscola{{ID: "i1", INEP: "1", DataRelatorio: "2026-08-05T10:00:00.000Z"}},
+	}
+	emAgosto, err := bubble.MontarMes(f, agosto)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(emAgosto.Itens) != 0 {
+		t.Fatalf("agosto = %+v", emAgosto.Itens)
+	}
+	emJulho, err := bubble.MontarMes(f, julho)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(emJulho.Itens) != 1 || emJulho.Itens[0].Data.Format("2006-01-02") != "2026-07-10" {
+		t.Fatalf("julho = %+v", emJulho.Itens)
+	}
+}
+
+func TestMontarMesErroDeImportacoesDoMesPropaga(t *testing.T) {
+	boom := errors.New("data api caiu")
+	f := &fonteFalsa{
+		osps:                 []bubble.OSP{{ID: "osp1", Status: "NF", PrevisaoEntrega: "2026-08-08T17:44:00.000Z", FRs: []string{"fr1"}}},
+		folhas:               []bubble.FolhaOSP{{ID: "fr1", INEP: "1", EscolaID: "e1", ListaContratosInstalacao: []string{"c1"}}},
+		escolas:              []bubble.Escola{escolaOK("e1", "1", "Em planejamento")},
+		contratos:            []bubble.ContratoInstalacao{kitRI("c1")},
+		erroImportacoesDoMes: boom,
+	}
+	got, err := bubble.MontarMes(f, agosto)
+	if !errors.Is(err, boom) {
+		t.Fatalf("err = %v", err)
+	}
+	if len(got.Itens) != 0 {
+		t.Fatalf("resultado parcial: %+v", got.Itens)
 	}
 }
