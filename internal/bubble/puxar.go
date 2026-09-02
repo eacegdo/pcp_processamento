@@ -2,6 +2,7 @@ package bubble
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -353,6 +354,11 @@ func loadByIDs[T any](
 
 	err := parallelDo(len(missing), puxarWorkers, func(i int) error {
 		row, err := getOne(missing[i])
+		if errors.Is(err, ErrNaoEncontrado) {
+			// Id órfão: o registro não existe mais no Bubble. Fica fora do mapa e a
+			// montagem o trata como ausente (skip), em vez de derrubar o mês.
+			return nil
+		}
 		if err != nil {
 			return fmt.Errorf("%s: %w", missing[i], err)
 		}

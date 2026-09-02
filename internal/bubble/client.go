@@ -51,6 +51,10 @@ func NewClient(baseURL, token string, httpClient *http.Client) *Client {
 	}
 }
 
+// ErrNaoEncontrado marca o 404 da Data API (registro apagado ou id órfão), para
+// o puxar poder tratar o registro como ausente em vez de falhar o mês inteiro.
+var ErrNaoEncontrado = fmt.Errorf("registro não encontrado no Bubble")
+
 // ErrLiveIndisponivel is returned when the base URL is Bubble live (osp still 404 there).
 var ErrLiveIndisponivel = fmt.Errorf("Data API live ainda não: use %s", BaseURLVersionTest)
 
@@ -311,6 +315,9 @@ func (c *Client) doGET(rawURL string) ([]byte, error) {
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
+	}
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, fmt.Errorf("%w: GET %s: %s", ErrNaoEncontrado, rawURL, truncate(body, 300))
 	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("bubble GET %s: HTTP %d: %s", rawURL, resp.StatusCode, truncate(body, 300))
