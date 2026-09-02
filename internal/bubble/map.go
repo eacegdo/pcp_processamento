@@ -32,7 +32,7 @@ const (
 	SkipSemFase      MotivoSkip = "escola sem fase"
 	SkipSemRegional  MotivoSkip = "escola sem regional"
 	SkipOSPReprovada MotivoSkip = "OSP reprovada"
-	SkipForaDoMes    MotivoSkip = "previsão de entrega fora do mês"
+	SkipForaDoMes    MotivoSkip = "data do Programado fora do mês"
 	SkipSemPrevisao  MotivoSkip = "OSP sem previsão de entrega"
 	SkipSemKitRI     MotivoSkip = "folha sem contrato kit de implantação de rede interna"
 )
@@ -123,12 +123,17 @@ func OSPNaoReprovada(osp OSP) bool {
 	return !strings.EqualFold(strings.TrimSpace(osp.Status), StatusReprovado)
 }
 
+// DataNoMes says whether a civil date belongs to the civil month.
+func DataNoMes(data, mes time.Time) bool {
+	return data.Year() == mes.Year() && data.Month() == mes.Month()
+}
+
 func OSPNoMes(osp OSP, mes time.Time) bool {
 	d, ok := DataPrevisaoEntrega(osp)
 	if !ok {
 		return false
 	}
-	return d.Year() == mes.Year() && d.Month() == mes.Month()
+	return DataNoMes(d, mes)
 }
 
 // MesCivil parses YYYY-MM, or the current month in America/Sao_Paulo when s is empty.

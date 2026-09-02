@@ -122,6 +122,12 @@ func MontarMes(fonte FonteBusca, mes time.Time) (Puxado, error) {
 				out.Skips = append(out.Skips, PuxarSkip{OSPID: osp.ID, FolhaID: folha.ID, INEP: inep, Motivo: skip})
 				continue
 			}
+			// O mês é o da data que vai ser gravada no Registro PCP, não o da
+			// previsão de entrega: item com data de outro mês não pertence a este.
+			if !DataNoMes(item.Data, mes) {
+				out.Skips = append(out.Skips, PuxarSkip{OSPID: osp.ID, FolhaID: folha.ID, INEP: inep, Motivo: SkipForaDoMes})
+				continue
+			}
 			out.Itens = append(out.Itens, item)
 		}
 	}

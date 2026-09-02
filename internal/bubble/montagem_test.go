@@ -279,3 +279,52 @@ func TestMontarMesSkipsDosFiltrosDeSempre(t *testing.T) {
 		}
 	}
 }
+
+func TestMontarMesDescartaItemComDataForaDoMes(t *testing.T) {
+	// Previsão em agosto, mas a escola conectou em julho: a data do Registro
+	// seria de julho, então o item não pertence a agosto.
+	f := &fonteFalsa{
+		osps:        []bubble.OSP{{ID: "osp1", Status: "Nota Fiscal", PrevisaoEntrega: "2026-08-08T17:44:00.000Z", FRs: []string{"fr1"}}},
+		folhas:      []bubble.FolhaOSP{{ID: "fr1", INEP: "1", EscolaID: "e1", OSPID: "osp1", ListaContratosInstalacao: []string{"c1"}}},
+		escolas:     []bubble.Escola{escolaOK("e1", "1", bubble.StatusConectada)},
+		contratos:   []bubble.ContratoInstalacao{kitRI("c1")},
+		importacoes: []bubble.ImportacaoEscola{{ID: "i1", INEP: "1", DataRelatorio: "2026-07-15T17:55:00.000Z"}},
+	}
+	got, err := bubble.MontarMes(f, agosto)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Itens) != 0 {
+		t.Fatalf("itens = %+v", got.Itens)
+	}
+	if len(got.Skips) != 1 {
+		t.Fatalf("skips = %+v", got.Skips)
+	}
+	skip := got.Skips[0]
+	if skip.Motivo != bubble.SkipForaDoMes {
+		t.Fatalf("motivo = %q", skip.Motivo)
+	}
+	if skip.OSPID != "osp1" || skip.FolhaID != "fr1" || skip.INEP != "1" {
+		t.Fatalf("%+v", skip)
+	}
+	if strings.Contains(string(bubble.SkipForaDoMes), "previsão") {
+		t.Fatalf("motivo fala de previsão de entrega: %q", bubble.SkipForaDoMes)
+	}
+}
+
+func TestMontarMesMantemItemComDataDentroDoMes(t *testing.T) {
+	f := &fonteFalsa{
+		osps:        []bubble.OSP{{ID: "osp1", Status: "Nota Fiscal", PrevisaoEntrega: "2026-08-08T17:44:00.000Z", FRs: []string{"fr1"}}},
+		folhas:      []bubble.FolhaOSP{{ID: "fr1", INEP: "1", EscolaID: "e1", OSPID: "osp1", ListaContratosInstalacao: []string{"c1"}}},
+		escolas:     []bubble.Escola{escolaOK("e1", "1", bubble.StatusConectada)},
+		contratos:   []bubble.ContratoInstalacao{kitRI("c1")},
+		importacoes: []bubble.ImportacaoEscola{{ID: "i1", INEP: "1", DataRelatorio: "2026-08-31T17:55:00.000Z"}},
+	}
+	got, err := bubble.MontarMes(f, agosto)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Itens) != 1 || got.Itens[0].Data.Format("2006-01-02") != "2026-08-31" {
+		t.Fatalf("itens = %+v skips = %+v", got.Itens, got.Skips)
+	}
+}
