@@ -185,7 +185,7 @@ Sem `-mes`, usa o mês atual em `America/Sao_Paulo`.
 
 | Flag | Padrão | Efeito |
 | --- | --- | --- |
-| `-mes YYYY-MM` | mês atual | recorte pela **previsão de entrega da OSP** |
+| `-mes YYYY-MM` | mês atual | recorte pela **Data do Programado** (data de conexão quando a Escola está `Conectada`, senão previsão de entrega) |
 | `-env test\|live` | `test` | qual app Bubble |
 | `-o arquivo.json` | `programado.json` | onde salvar o JSON |
 | `-somente-json` | desligado | só gera o arquivo; **não** cria Job nem grava `pcp` |
@@ -200,7 +200,12 @@ Se não houver nenhuma folha válida, o comando **não** cria Job e **não** apa
 
 ### O que entra (e o que é skip)
 
-Percorre OSPs do mês com status ≠ `Reprovado`. Em cada Folha de Registro:
+Busca por dois caminhos e une o resultado sem duplicar OSP:
+
+- **por previsão:** OSPs com previsão de entrega no mês, status ≠ `Reprovado`
+- **por conexão:** `importação_escola` com `data_relatorio` no mês → INEPs → Folhas de Registro desses INEPs → as OSPs dessas folhas
+
+Em cada Folha de Registro:
 
 1. Contrato de instalação com descrição contendo `kit` e tipo de obra `4-IMPLANTAÇÃO_DE_REDE_INTERNA`
 2. Escola com fase e regional
@@ -208,6 +213,9 @@ Percorre OSPs do mês com status ≠ `Reprovado`. Em cada Folha de Registro:
 4. **Data do Programado:** se a escola está `Conectada` e `importação_escola.data_relatorio` está preenchida, usa essa data; senão usa a previsão de entrega da OSP
 5. **Provisória:** `true` se `OSnum` da OSP está vazio ou `0`
 6. Fase, regional, UF, INEP e fornecedor RI vêm da **escola**
+7. **Filtro final:** item cuja Data do Programado cai fora do mês pedido vira skip `data do Programado fora do mês` — vale para os dois caminhos
+
+Por isso puxar um mês pode **remover** dele Registros que estavam lá com data de outro mês (o Espelho do Mês substitui o mês civil). Vale puxar em seguida o mês da conexão para reancorar esses Registros. O log e a resposta de `POST /v1/programado/puxar` trazem o resumo por origem (previsão, conexão, após dedupe, itens fora do mês).
 
 MIP não entra. Folhas que não passam nas regras aparecem no log como `skip` (sem INEP, sem kit RI, escola sem fase, etc.) e não vão para o JSON.
 
