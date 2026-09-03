@@ -222,6 +222,21 @@ func ConstraintsFolhasINEPs(ineps []string) string {
 	return string(b)
 }
 
+// ConstraintsFolhasOSPs filtra fr_osp pela OSP a que a folha pertence. É o caminho
+// de ida: a folha é que aponta para a OSP. A lista `FR` dentro da OSP não serve de
+// índice — ela fica incompleta (OSP com "FR esperadas" 8 e só 3 na lista), e uma
+// folha fora dela ficaria invisível. Lista vazia continua sendo um "in" de lista
+// vazia, que não casa nada, em vez de virar consulta sem constraint.
+func ConstraintsFolhasOSPs(ospIDs []string) string {
+	if ospIDs == nil {
+		ospIDs = []string{}
+	}
+	b, _ := json.Marshal([]map[string]any{
+		{"key": "OSP", "constraint_type": "in", "value": ospIDs},
+	})
+	return string(b)
+}
+
 func ContratoKitRedeInterna(c ContratoInstalacao) bool {
 	if c.TipoDeObra != TipoObraRedeInterna {
 		return false

@@ -56,12 +56,12 @@ func (f *fonteFalsa) ImportacoesDoMes(mes time.Time) ([]bubble.ImportacaoEscola,
 	return out, nil
 }
 
-func (f *fonteFalsa) FolhasPorIDs(ids []string) (map[string]bubble.FolhaOSP, error) {
-	quer := conjunto(ids)
-	out := map[string]bubble.FolhaOSP{}
+func (f *fonteFalsa) FolhasPorOSPs(ospIDs []string) ([]bubble.FolhaOSP, error) {
+	quer := conjunto(ospIDs)
+	var out []bubble.FolhaOSP
 	for _, folha := range f.folhas {
-		if _, ok := quer[folha.ID]; ok {
-			out[folha.ID] = folha
+		if _, ok := quer[folha.OSPID]; ok {
+			out = append(out, folha)
 		}
 	}
 	return out, nil
@@ -241,6 +241,38 @@ func TestMontarMesEscolaNaoConectadaUsaAPrevisao(t *testing.T) {
 	}
 }
 
+func TestMontarMesNaoUsaAListaFRDaOSP(t *testing.T) {
+	// No Bubble a lista `FR` de dentro da OSP fica incompleta (OSP com
+	// "FR esperadas" 8 e só 3 na lista). Quem manda é a folha, que aponta para a
+	// OSP: a folha fora da lista tem que entrar do mesmo jeito.
+	f := &fonteFalsa{
+		osps: []bubble.OSP{{
+			ID: "osp1", Status: "Nota Fiscal", PrevisaoEntrega: "2026-08-08T17:44:00.000Z",
+			FRs: []string{"frNaLista"}, FREsperadas: 2,
+		}},
+		folhas: []bubble.FolhaOSP{
+			{ID: "frNaLista", INEP: "1", EscolaID: "e1", OSPID: "osp1", ListaContratosInstalacao: []string{"c1"}},
+			{ID: "frForaDaLista", INEP: "2", EscolaID: "e1", OSPID: "osp1", ListaContratosInstalacao: []string{"c1"}},
+		},
+		escolas:   []bubble.Escola{escolaOK("e1", "1", "Em planejamento")},
+		contratos: []bubble.ContratoInstalacao{kitRI("c1")},
+	}
+	got, err := bubble.MontarMes(f, agosto)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Itens) != 2 {
+		t.Fatalf("itens = %+v, skips = %+v", got.Itens, got.Skips)
+	}
+	ineps := map[string]bool{}
+	for _, item := range got.Itens {
+		ineps[item.INEP] = true
+	}
+	if !ineps["1"] || !ineps["2"] {
+		t.Fatalf("INEPs = %v, quer os dois", ineps)
+	}
+}
+
 func TestMontarMesSkipsDosFiltrosDeSempre(t *testing.T) {
 	osp := func(id, fr string) bubble.OSP {
 		return bubble.OSP{ID: id, Status: "Nota Fiscal", PrevisaoEntrega: "2026-08-08T17:44:00.000Z", FRs: []string{fr}}
@@ -254,11 +286,11 @@ func TestMontarMesSkipsDosFiltrosDeSempre(t *testing.T) {
 			osp("ospSemReg", "frSemReg"),
 		},
 		folhas: []bubble.FolhaOSP{
-			{ID: "frRep", INEP: "rep", EscolaID: "e1", ListaContratosInstalacao: []string{"c1"}},
-			{ID: "frSemINEP", INEP: "", EscolaID: "e1", ListaContratosInstalacao: []string{"c1"}},
-			{ID: "frSemKit", INEP: "semkit", EscolaID: "e1", ListaContratosInstalacao: []string{"cOutro"}},
-			{ID: "frSemFase", INEP: "semfase", EscolaID: "eSemFase", ListaContratosInstalacao: []string{"c1"}},
-			{ID: "frSemReg", INEP: "semreg", EscolaID: "eSemReg", ListaContratosInstalacao: []string{"c1"}},
+			{ID: "frRep", INEP: "rep", EscolaID: "e1", OSPID: "ospRep", ListaContratosInstalacao: []string{"c1"}},
+			{ID: "frSemINEP", INEP: "", EscolaID: "e1", OSPID: "ospSemINEP", ListaContratosInstalacao: []string{"c1"}},
+			{ID: "frSemKit", INEP: "semkit", EscolaID: "e1", OSPID: "ospSemKit", ListaContratosInstalacao: []string{"cOutro"}},
+			{ID: "frSemFase", INEP: "semfase", EscolaID: "eSemFase", OSPID: "ospSemFase", ListaContratosInstalacao: []string{"c1"}},
+			{ID: "frSemReg", INEP: "semreg", EscolaID: "eSemReg", OSPID: "ospSemReg", ListaContratosInstalacao: []string{"c1"}},
 		},
 		escolas: []bubble.Escola{
 			escolaOK("e1", "1", "Em planejamento"),

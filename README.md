@@ -207,6 +207,8 @@ Busca por dois caminhos e une o resultado sem duplicar OSP:
 - **por previsão:** OSPs com previsão de entrega no mês, status ≠ `Reprovado`
 - **por conexão:** `importação_escola` com **data de conexão** no mês → INEPs → Folhas de Registro desses INEPs → as OSPs dessas folhas
 
+As folhas de cada OSP vêm por `fr_osp.OSP` (a folha aponta para a OSP). A lista `FR` de dentro da OSP **não** é usada: ela fica incompleta — há OSP com `FR esperadas` 8 e só 3 na lista — e uma folha fora dela ficaria invisível.
+
 Em cada Folha de Registro:
 
 1. Contrato de instalação com descrição contendo `kit` e tipo de obra `4-IMPLANTAÇÃO_DE_REDE_INTERNA`

@@ -137,6 +137,58 @@ func (c *Client) FolhasPorIDs(ids []string) (map[string]FolhaOSP, error) {
 	)
 }
 
+// FolhasPorOSPs traz as Folhas de Registro dessas OSPs, pela chave OSP da folha.
+func (c *Client) FolhasPorOSPs(ospIDs []string) ([]FolhaOSP, error) {
+	ospIDs = uniqueNonEmpty(ospIDs)
+	if len(ospIDs) == 0 {
+		return nil, nil
+	}
+
+	parts := chunks(ospIDs, DefaultPageSize)
+	var mu sync.Mutex
+	porID := make(map[string]FolhaOSP)
+	err := parallelDo(len(parts), puxarWorkers, func(i int) error {
+		return c.coletaFolhasPorOSPs(parts[i], &mu, porID)
+	})
+	if err != nil {
+		porID = make(map[string]FolhaOSP)
+		err = parallelDo(len(ospIDs), puxarWorkers, func(i int) error {
+			if err := c.coletaFolhasPorOSPs(ospIDs[i:i+1], &mu, porID); err != nil {
+				return fmt.Errorf("fr_osp OSP %s: %w", ospIDs[i], err)
+			}
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	out := make([]FolhaOSP, 0, len(porID))
+	for _, folha := range porID {
+		out = append(out, folha)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	return out, nil
+}
+
+func (c *Client) coletaFolhasPorOSPs(ospIDs []string, mu *sync.Mutex, porID map[string]FolhaOSP) error {
+	cons := ConstraintsFolhasOSPs(ospIDs)
+	rows, err := paginado(func(cursor int) ([]FolhaOSP, Page, error) {
+		return c.ListFolhasOSPConstrained(DefaultPageSize, cursor, cons)
+	})
+	if err != nil {
+		return err
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	for _, row := range rows {
+		if id := strings.TrimSpace(row.ID); id != "" {
+			porID[id] = row
+		}
+	}
+	return nil
+}
+
 func (c *Client) ContratosPorIDs(ids []string) (map[string]ContratoInstalacao, error) {
 	return loadByIDs(ids,
 		func(part []string) ([]ContratoInstalacao, error) {

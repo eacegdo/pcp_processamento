@@ -17,8 +17,10 @@ type FonteBusca interface {
 	OSPsPorIDs(ids []string) (map[string]OSP, error)
 	// ImportacoesDoMes traz as importações de escola com conexão registrada no mês.
 	ImportacoesDoMes(mes time.Time) ([]ImportacaoEscola, error)
-	// FolhasPorIDs traz as Folhas de Registro desses IDs.
-	FolhasPorIDs(ids []string) (map[string]FolhaOSP, error)
+	// FolhasPorOSPs traz as Folhas de Registro cuja OSP está na lista. É o caminho
+	// de ida (a folha aponta para a OSP); a lista `FR` dentro da OSP fica incompleta
+	// e não serve de índice.
+	FolhasPorOSPs(ospIDs []string) ([]FolhaOSP, error)
 	// FolhasPorINEPs traz as Folhas de Registro cujo INEP (o da folha) está na lista.
 	FolhasPorINEPs(ineps []string) ([]FolhaOSP, error)
 	// ContratosPorIDs traz os contratos de instalação desses IDs.
@@ -41,21 +43,36 @@ func MontarMes(fonte FonteBusca, mes time.Time) (Puxado, error) {
 	}
 	osps := unirOSPs(ospsPrevisao, ospsConexao)
 
-	frIDs := make([]string, 0)
+	ospIDs := make([]string, 0, len(osps))
 	for _, osp := range osps {
-		frIDs = append(frIDs, osp.FRs...)
+		if id := strings.TrimSpace(osp.ID); id != "" {
+			ospIDs = append(ospIDs, id)
+		}
 	}
 	resumo := PuxarResumo{
 		OSPsPorPrevisao: len(ospsPrevisao),
 		OSPsPorConexao:  len(ospsConexao),
 		OSPsUnicas:      len(osps),
 	}
-	log.Printf("puxar: %s; %d folhas; buscando em lote", resumo, len(uniqueNonEmpty(frIDs)))
+	log.Printf("puxar: %s; buscando as folhas dessas OSPs", resumo)
 
-	folhas, err := fonte.FolhasPorIDs(frIDs)
+	todasFolhas, err := fonte.FolhasPorOSPs(ospIDs)
 	if err != nil {
 		return Puxado{}, err
 	}
+	// Uma folha por OSP a que ela pertence, na ordem estável do _id.
+	folhasDaOSP := make(map[string][]FolhaOSP, len(osps))
+	folhas := make(map[string]FolhaOSP, len(todasFolhas))
+	for _, folha := range todasFolhas {
+		id := strings.TrimSpace(folha.ID)
+		if id == "" {
+			continue
+		}
+		folhas[id] = folha
+		ospID := strings.TrimSpace(folha.OSPID)
+		folhasDaOSP[ospID] = append(folhasDaOSP[ospID], folha)
+	}
+	log.Printf("puxar: %d folhas nessas OSPs", len(folhas))
 
 	var contratoIDs, escolaIDs []string
 	for _, folha := range folhas {
@@ -100,16 +117,12 @@ func MontarMes(fonte FonteBusca, mes time.Time) (Puxado, error) {
 
 	out := Puxado{Itens: make([]domain.ItemCarga, 0), Skips: skipsConexao, Resumo: resumo}
 	for _, osp := range osps {
-		for _, fid := range osp.FRs {
-			fid = strings.TrimSpace(fid)
-			if fid == "" {
-				continue
-			}
-			folha, ok := folhas[fid]
-			if !ok {
-				out.Skips = append(out.Skips, PuxarSkip{OSPID: osp.ID, FolhaID: fid, Motivo: SkipSemFolha})
-				continue
-			}
+		doOSP := folhasDaOSP[strings.TrimSpace(osp.ID)]
+		if len(doOSP) == 0 {
+			out.Skips = append(out.Skips, PuxarSkip{OSPID: osp.ID, Motivo: SkipSemFolha})
+			continue
+		}
+		for _, folha := range doOSP {
 			folhaContratos := map[string]ContratoInstalacao{}
 			for _, cid := range folha.ListaContratosInstalacao {
 				if ct, ok := contratos[strings.TrimSpace(cid)]; ok {

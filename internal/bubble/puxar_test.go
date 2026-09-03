@@ -132,8 +132,8 @@ func TestPuxarMesListaFolhasEmLote(t *testing.T) {
 			]}}`)
 		case r.URL.Path == "/obj/fr_osp":
 			_, _ = io.WriteString(w, `{"response":{"cursor":0,"remaining":0,"results":[
-			  {"_id":"fr1","INEP":"1","Escola":"e1","lista de contratos_instalação":["c1"]},
-			  {"_id":"fr2","INEP":"2","Escola":"e1","lista de contratos_instalação":["c1"]}
+			  {"_id":"fr1","INEP":"1","Escola":"e1","OSP":"osp1","lista de contratos_instalação":["c1"]},
+			  {"_id":"fr2","INEP":"2","Escola":"e1","OSP":"osp1","lista de contratos_instalação":["c1"]}
 			]}}`)
 		case r.URL.Path == "/obj/contrato_taxa_instalacao":
 			_, _ = io.WriteString(w, `{"response":{"cursor":0,"remaining":0,"results":[
@@ -322,9 +322,10 @@ func TestFolhasPorINEPsListaVaziaNaoConsultaOBubble(t *testing.T) {
 	}
 }
 
-// Registro apontado por uma OSP mas já apagado no Bubble (404 MISSING_DATA) não
-// pode derrubar o puxar do mês: vira skip, como qualquer folha que não passa.
-func TestPuxarMesFolhaOrfaViraSkip(t *testing.T) {
+// OSP do mês sem nenhuma folha apontando para ela vira skip, em vez de derrubar
+// o mês ou passar em branco. A lista `FR` de dentro da OSP não é consultada: ela
+// fica incompleta, então uma folha fora dela não pode ser invisível.
+func TestPuxarMesOSPSemFolhaViraSkip(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
@@ -334,13 +335,8 @@ func TestPuxarMesFolhaOrfaViraSkip(t *testing.T) {
 			  "Previsão de entrega":"2026-08-08T17:44:00.000Z","FR":["fr1","frOrfa"]
 			}]}}`)
 		case r.URL.Path == "/obj/fr_osp":
-			// o lote devolve só a folha que existe
-			_, _ = io.WriteString(w, `{"response":{"cursor":0,"remaining":0,"results":[{
-			  "_id":"fr1","INEP":"1","Escola":"e1","lista de contratos_instalação":["c1"]
-			}]}}`)
-		case r.URL.Path == "/obj/fr_osp/frOrfa":
-			w.WriteHeader(http.StatusNotFound)
-			_, _ = io.WriteString(w, `{"statusCode":404,"body":{"status":"MISSING_DATA","message":"Missing object of type fr_osp: object with id frOrfa does not exist"}}`)
+			// nenhuma folha aponta para osp1
+			_, _ = io.WriteString(w, `{"response":{"cursor":0,"remaining":0,"results":[]}}`)
 		case r.URL.Path == "/obj/contrato_taxa_instalacao":
 			_, _ = io.WriteString(w, `{"response":{"cursor":0,"remaining":0,"results":[{
 			  "_id":"c1","Descrição":"Kit RI","Tipo de obra":"4-IMPLANTAÇÃO_DE_REDE_INTERNA"
@@ -362,12 +358,12 @@ func TestPuxarMesFolhaOrfaViraSkip(t *testing.T) {
 	c := bubble.NewClient(srv.URL, "tok", srv.Client())
 	got, err := c.PuxarMes(time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC))
 	if err != nil {
-		t.Fatalf("folha órfã derrubou o puxar: %v", err)
+		t.Fatalf("OSP sem folha derrubou o puxar: %v", err)
 	}
-	if len(got.Itens) != 1 || got.Itens[0].INEP != "1" {
+	if len(got.Itens) != 0 {
 		t.Fatalf("itens = %+v", got.Itens)
 	}
-	if len(got.Skips) != 1 || got.Skips[0].Motivo != bubble.SkipSemFolha || got.Skips[0].FolhaID != "frOrfa" {
+	if len(got.Skips) != 1 || got.Skips[0].Motivo != bubble.SkipSemFolha || got.Skips[0].OSPID != "osp1" {
 		t.Fatalf("skips = %+v", got.Skips)
 	}
 }
