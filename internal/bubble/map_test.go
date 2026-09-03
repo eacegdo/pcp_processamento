@@ -109,7 +109,7 @@ func TestProgramadoUsaPrevisaoEntregaDoOSP(t *testing.T) {
 	}
 }
 
-func TestProgramadoUsaDataRelatorioQuandoConectada(t *testing.T) {
+func TestProgramadoUsaDataDaConexaoQuandoConectada(t *testing.T) {
 	var env bubble.Envelope
 	_ = json.Unmarshal(testdata(t, "fr_osp_page.json"), &env)
 	var rows []bubble.FolhaOSP
@@ -136,15 +136,17 @@ func TestProgramadoUsaDataRelatorioQuandoConectada(t *testing.T) {
 	if skip != "" {
 		t.Fatalf("skip = %q", skip)
 	}
-	if item.Data.Format("2006-01-02") != "2026-08-10" {
-		t.Fatalf("data = %s, want data_relatorio", item.Data.Format("2006-01-02"))
+	// data_relatorio da fixture é 10/08: o relatório é carimbado em D+1, então a
+	// conexão foi em 09/08.
+	if item.Data.Format("2006-01-02") != "2026-08-09" {
+		t.Fatalf("data = %s, want a conexão (data_relatorio - 1 dia)", item.Data.Format("2006-01-02"))
 	}
 	if item.Provisoria == nil || *item.Provisoria {
 		t.Fatalf("osnum preenchido deve ser provisoria=false")
 	}
 }
 
-func TestProgramadoIgnoraDataRelatorioSeNaoConectada(t *testing.T) {
+func TestProgramadoIgnoraDataDaConexaoSeNaoConectada(t *testing.T) {
 	var env bubble.Envelope
 	_ = json.Unmarshal(testdata(t, "fr_osp_page.json"), &env)
 	var rows []bubble.FolhaOSP
@@ -223,6 +225,23 @@ func TestDecodeOSPRegionalAceitaListaOuTexto(t *testing.T) {
 	}
 }
 
+func TestDataConexaoDescontaOCarimboDoRelatorio(t *testing.T) {
+	imp := bubble.ImportacaoEscola{DataRelatorio: "2026-09-01T22:37:17.344Z"}
+	d, ok := bubble.DataConexao(&imp)
+	if !ok {
+		t.Fatal("não resolveu a data")
+	}
+	if got := d.Format("2006-01-02"); got != "2026-08-31" {
+		t.Fatalf("data = %s, want 2026-08-31", got)
+	}
+	if _, ok := bubble.DataConexao(nil); ok {
+		t.Fatal("imp nil não tem data")
+	}
+	if _, ok := bubble.DataConexao(&bubble.ImportacaoEscola{}); ok {
+		t.Fatal("data_relatorio vazia não tem data")
+	}
+}
+
 func TestConstraintsImportacaoMesCobreOMesCivil(t *testing.T) {
 	raw := bubble.ConstraintsImportacaoMes(time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC))
 	var cons []map[string]string
@@ -237,17 +256,26 @@ func TestConstraintsImportacaoMesCobreOMesCivil(t *testing.T) {
 			t.Fatalf("key = %q", c["key"])
 		}
 	}
-	// mesma convenção de ConstraintsOSPMes: (>= dia 1 00:00 BRT) e (< dia 1 do mês seguinte)
+	// mesma convenção de ConstraintsOSPMes — (>= dia 1 00:00 BRT) e (< dia 1 do mês
+	// seguinte) — deslocada um dia, porque data_relatorio é carimbado em D+1.
 	ospRaw := bubble.ConstraintsOSPMes(time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC))
 	var ospCons []map[string]string
 	if err := json.Unmarshal([]byte(ospRaw), &ospCons); err != nil {
 		t.Fatal(err)
 	}
-	if cons[0]["constraint_type"] != ospCons[0]["constraint_type"] || cons[0]["value"] != ospCons[0]["value"] {
-		t.Fatalf("limite inicial = %v, osp = %v", cons[0], ospCons[0])
-	}
-	if cons[1]["constraint_type"] != ospCons[1]["constraint_type"] || cons[1]["value"] != ospCons[1]["value"] {
-		t.Fatalf("limite final = %v, osp = %v", cons[1], ospCons[1])
+	umDia := 24 * time.Hour
+	for i := range cons {
+		if cons[i]["constraint_type"] != ospCons[i]["constraint_type"] {
+			t.Fatalf("constraint_type[%d] = %v, osp = %v", i, cons[i], ospCons[i])
+		}
+		base, err := time.Parse("2006-01-02T15:04:05.000Z", ospCons[i]["value"])
+		if err != nil {
+			t.Fatal(err)
+		}
+		quer := base.Add(umDia).Format("2006-01-02T15:04:05.000Z")
+		if cons[i]["value"] != quer {
+			t.Fatalf("limite[%d] = %s, quer %s (osp %s + 1 dia)", i, cons[i]["value"], quer, ospCons[i]["value"])
+		}
 	}
 }
 

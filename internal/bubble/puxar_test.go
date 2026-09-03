@@ -77,7 +77,7 @@ func TestPuxarMesMontaJSONDoProgramado(t *testing.T) {
 		case strings.Contains(r.URL.Path, "import"):
 			_, _ = io.WriteString(w, `{
 			  "response": {"cursor":0,"remaining":0,"results":[{
-			    "inep":"15026868","data_relatorio":"2026-08-10T17:55:00.000Z"
+			    "inep":"15026868","data_relatorio":"2026-08-11T17:55:00.000Z"
 			  }]}
 			}`)
 		default:
@@ -222,7 +222,7 @@ func TestPuxarMesCaminhoDeConexaoBateNosEndpoints(t *testing.T) {
 				t.Errorf("constraints de importação = %s", cons)
 			}
 			_, _ = io.WriteString(w, `{"response":{"cursor":0,"remaining":0,"results":[{
-			  "inep":"15026868","data_relatorio":"2026-08-05T17:55:00.000Z"
+			  "inep":"15026868","data_relatorio":"2026-08-06T17:55:00.000Z"
 			}]}}`)
 		case r.URL.Path == "/obj/fr_osp" && strings.Contains(cons, `"INEP"`):
 			folhasPorINEP++

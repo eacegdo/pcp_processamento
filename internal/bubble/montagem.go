@@ -15,7 +15,7 @@ type FonteBusca interface {
 	OSPsDoMes(mes time.Time) ([]OSP, error)
 	// OSPsPorIDs traz as OSPs desses IDs.
 	OSPsPorIDs(ids []string) (map[string]OSP, error)
-	// ImportacoesDoMes traz as importações de escola com data_relatorio no mês.
+	// ImportacoesDoMes traz as importações de escola com conexão registrada no mês.
 	ImportacoesDoMes(mes time.Time) ([]ImportacaoEscola, error)
 	// FolhasPorIDs traz as Folhas de Registro desses IDs.
 	FolhasPorIDs(ids []string) (map[string]FolhaOSP, error)
@@ -25,7 +25,7 @@ type FonteBusca interface {
 	ContratosPorIDs(ids []string) (map[string]ContratoInstalacao, error)
 	// EscolasPorIDs traz as escolas desses IDs.
 	EscolasPorIDs(ids []string) (map[string]Escola, error)
-	// ImportacoesPorINEPs traz, por INEP, a importação de data_relatorio mais recente.
+	// ImportacoesPorINEPs traz, por INEP, a importação de conexão mais recente.
 	ImportacoesPorINEPs(ineps []string) (map[string]*ImportacaoEscola, error)
 }
 
@@ -146,8 +146,8 @@ func MontarMes(fonte FonteBusca, mes time.Time) (Puxado, error) {
 	return out, nil
 }
 
-// ospsDasConexoesDoMes percorre o caminho novo: importações com data_relatorio no
-// mês → INEPs distintos → Folhas de Registro desses INEPs → as OSPs dessas folhas.
+// ospsDasConexoesDoMes percorre o caminho novo: importações com conexão registrada
+// no mês → INEPs distintos → Folhas de Registro desses INEPs → as OSPs dessas folhas.
 // A OSP Reprovada alcançada por aqui é descartada da união e sai como skip, para
 // não inflar o resumo nem gerar skip para cada folha irmã dela.
 func ospsDasConexoesDoMes(fonte FonteBusca, mes time.Time) ([]OSP, []PuxarSkip, error) {
@@ -159,7 +159,7 @@ func ospsDasConexoesDoMes(fonte FonteBusca, mes time.Time) ([]OSP, []PuxarSkip, 
 
 	var ineps []string
 	for _, imp := range imps {
-		d, ok := civilDate(imp.DataRelatorio)
+		d, ok := DataConexao(&imp)
 		if !ok || !DataNoMes(d, mes) {
 			continue
 		}

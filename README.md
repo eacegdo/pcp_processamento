@@ -190,6 +190,8 @@ Sem `-mes`, usa o mês atual em `America/Sao_Paulo`.
 | `-o arquivo.json` | `programado.json` | onde salvar o JSON |
 | `-somente-json` | desligado | só gera o arquivo; **não** cria Job nem grava `pcp` |
 
+**Data de conexão:** é `importação_escola.data_relatorio` **menos um dia**. O `data_relatorio` é o carimbo do relatório, gerado em D+1 (sempre 24h exatas depois do lançamento da importação), então usá-lo cru joga a conexão para o dia seguinte — e, na virada do mês, para o mês seguinte. Quando o INEP tem mais de uma importação, vale a de conexão mais recente.
+
 Exemplo só para inspecionar o que seria gravado:
 
 ```bash
@@ -203,14 +205,14 @@ Se não houver nenhuma folha válida, o comando **não** cria Job e **não** apa
 Busca por dois caminhos e une o resultado sem duplicar OSP:
 
 - **por previsão:** OSPs com previsão de entrega no mês, status ≠ `Reprovado`
-- **por conexão:** `importação_escola` com `data_relatorio` no mês → INEPs → Folhas de Registro desses INEPs → as OSPs dessas folhas
+- **por conexão:** `importação_escola` com **data de conexão** no mês → INEPs → Folhas de Registro desses INEPs → as OSPs dessas folhas
 
 Em cada Folha de Registro:
 
 1. Contrato de instalação com descrição contendo `kit` e tipo de obra `4-IMPLANTAÇÃO_DE_REDE_INTERNA`
 2. Escola com fase e regional
 3. Quantidade **1 por folha**
-4. **Data do Programado:** se a escola está `Conectada` e `importação_escola.data_relatorio` está preenchida, usa essa data; senão usa a previsão de entrega da OSP
+4. **Data do Programado:** escola `Conectada` usa a **data de conexão**; escola que ainda não conectou usa a previsão de entrega da OSP. Escola `Conectada` cuja data de conexão não dá para determinar vira skip `escola conectada sem data de conexão` — a previsão de entrega não serve de reserva, ela arrastaria conexões de meses passados para o mês puxado
 5. **Provisória:** `true` se `OSnum` da OSP está vazio ou `0`
 6. Fase, regional, UF, INEP e fornecedor RI vêm da **escola**
 7. **Filtro final:** item cuja Data do Programado cai fora do mês pedido vira skip `data do Programado fora do mês` — vale para os dois caminhos
